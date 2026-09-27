@@ -1,0 +1,197 @@
+{
+  "name": "Dory's Bakehouse",
+  "tagline": "Baked this morning, in small batches.",
+  "contact": {
+    "phone": "[+91 00000 00000]",
+    "whatsapp": "[910000000000]",
+    "email": "[hello@dorysbakehouse.com]",
+    "instagram": "[dorysbakehouse]",
+    "address": "[Shop no., Street, Area, City – PIN]",
+    "mapEmbed": "",
+    "mapLink": "[Paste your Google Maps share link]"
+  },
+  "hours": [
+    {
+      "days": "Monday – Friday",
+      "time": "[8:00 am – 9:00 pm]"
+    },
+    {
+      "days": "Saturday – Sunday",
+      "time": "[9:00 am – 10:00 pm]"
+    }
+  ],
+  "special": {
+    "show": true,
+    "title": "[This week's special]",
+    "description": "[One or two lines about it: what's in it, why it's good.]",
+    "price": "[₹000]",
+    "validTill": "[Sunday]",
+    "image": ""
+  },
+  "menu": [
+    {
+      "section": "Breads",
+      "note": "[Out of the oven by 9 am]",
+      "items": [
+        {
+          "name": "[Item name]",
+          "desc": "[Short description]",
+          "price": "[₹000]",
+          "tags": [
+            "bestseller"
+          ]
+        },
+        {
+          "name": "[Item name]",
+          "desc": "[Short description]",
+          "price": "[₹000]",
+          "tags": []
+        },
+        {
+          "name": "[Item name]",
+          "desc": "[Short description]",
+          "price": "[₹000]",
+          "tags": [
+            "eggless"
+          ]
+        }
+      ]
+    },
+    {
+      "section": "Cakes & pastries",
+      "note": "",
+      "items": [
+        {
+          "name": "[Item name]",
+          "desc": "[Short description]",
+          "price": "[₹000]",
+          "tags": []
+        },
+        {
+          "name": "[Item name]",
+          "desc": "[Short description]",
+          "price": "[₹000]",
+          "tags": [
+            "eggless"
+          ]
+        },
+        {
+          "name": "[Item name]",
+          "desc": "[Short description]",
+          "price": "[₹000]",
+          "tags": [
+            "new"
+          ]
+        }
+      ]
+    },
+    {
+      "section": "Cookies & bakes",
+      "note": "",
+      "items": [
+        {
+          "name": "[Item name]",
+          "desc": "[Short description]",
+          "price": "[₹000]",
+          "tags": []
+        },
+        {
+          "name": "[Item name]",
+          "desc": "[Short description]",
+          "price": "[₹000]",
+          "tags": []
+        }
+      ]
+    },
+    {
+      "section": "Drinks",
+      "note": "",
+      "items": [
+        {
+          "name": "[Item name]",
+          "desc": "[Short description]",
+          "price": "[₹000]",
+          "tags": []
+        },
+        {
+          "name": "[Item name]",
+          "desc": "[Short description]",
+          "price": "[₹000]",
+          "tags": []
+        }
+      ]
+    }
+  ],
+  "highlights": [
+    {
+      "title": "[Signature item 1]",
+      "desc": "[Why people come back for it]",
+      "image": ""
+    },
+    {
+      "title": "[Signature item 2]",
+      "desc": "[Why people come back for it]",
+      "image": ""
+    },
+    {
+      "title": "[Signature item 3]",
+      "desc": "[Why people come back for it]",
+      "image": ""
+    }
+  ],
+  "about": {
+    "heading": "[How Dory's started]",
+    "story": [
+      "[First paragraph: who Dory is and how the bakery began.]",
+      "[Second paragraph: what you bake, how, and what you won't compromise on.]",
+      "[Third paragraph (optional): the neighbourhood, the team, what's next.]"
+    ],
+    "image": "",
+    "values": [
+      {
+        "title": "[Value 1, e.g. Baked fresh daily]",
+        "desc": "[One line]"
+      },
+      {
+        "title": "[Value 2, e.g. Real butter, no premixes]",
+        "desc": "[One line]"
+      },
+      {
+        "title": "[Value 3, e.g. Eggless on request]",
+        "desc": "[One line]"
+      }
+    ]
+  },
+  "cakes": {
+    "leadTime": "[48 hours]",
+    "startingPrice": "[₹000 per kg]",
+    "sizes": [
+      "0.5 kg",
+      "1 kg",
+      "1.5 kg",
+      "2 kg",
+      "3 kg+"
+    ],
+    "flavours": [
+      "[Chocolate truffle]",
+      "[Red velvet]",
+      "[Vanilla berry]",
+      "[Butterscotch]",
+      "Something else (tell us)"
+    ],
+    "occasions": [
+      "Birthday",
+      "Anniversary",
+      "Wedding",
+      "Baby shower",
+      "Office / corporate",
+      "Other"
+    ],
+    "notes": [
+      "[Eggless available on all cakes]",
+      "[Photo cakes and tiered cakes need 3 days' notice]",
+      "[50% advance confirms the order]"
+    ]
+  },
+  "gallery": []
+}
