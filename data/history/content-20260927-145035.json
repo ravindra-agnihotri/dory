@@ -1,0 +1,197 @@
+{
+  "about": {
+    "heading": "[How Dory's started]",
+    "image": "",
+    "story": [
+      "[First paragraph: who Dory is and how the bakery began.]",
+      "[Second paragraph: what you bake, how, and what you won't compromise on.]",
+      "[Third paragraph (optional): the neighbourhood, the team, what's next.]"
+    ],
+    "values": [
+      {
+        "desc": "[One line]",
+        "title": "[Value 1, e.g. Baked fresh daily]"
+      },
+      {
+        "desc": "[One line]",
+        "title": "[Value 2, e.g. Real butter, no premixes]"
+      },
+      {
+        "desc": "[One line]",
+        "title": "[Value 3, e.g. Eggless on request]"
+      }
+    ]
+  },
+  "cakes": {
+    "flavours": [
+      "[Chocolate truffle]",
+      "[Red velvet]",
+      "[Vanilla berry]",
+      "[Butterscotch]",
+      "Something else (tell us)"
+    ],
+    "leadTime": "[48 hours]",
+    "notes": [
+      "[Eggless available on all cakes]",
+      "[Photo cakes and tiered cakes need 3 days' notice]",
+      "[50% advance confirms the order]"
+    ],
+    "occasions": [
+      "Birthday",
+      "Anniversary",
+      "Wedding",
+      "Baby shower",
+      "Office / corporate",
+      "Other"
+    ],
+    "sizes": [
+      "0.5 kg",
+      "1 kg",
+      "1.5 kg",
+      "2 kg",
+      "3 kg+"
+    ],
+    "startingPrice": "[₹000 per kg]"
+  },
+  "contact": {
+    "address": "[Shop no., Street, Area, City – PIN]",
+    "email": "[hello@dorysbakehouse.com]",
+    "instagram": "[dorysbakehouse]",
+    "mapEmbed": "https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3782.553352839229!2d73.80103907606238!3d18.54907536830134!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x3bc2bf7fe8568aed%3A0xc672adb6a88d379b!2sNeelkanth%20cooperative%20housing%20society!5e0!3m2!1sen!2sin!4v1790500497592!5m2!1sen!2sin\" width=\"600\" height=\"450\" style=\"border:0;\" allowfullscreen=\"\" loading=\"lazy\" referrerpolicy=\"strict-origin-when-cross-origin\"",
+    "mapLink": "https://maps.app.goo.gl/yUK51cvvedybBgiz6",
+    "phone": "[+91 00000 00000]",
+    "whatsapp": "[910000000000]"
+  },
+  "gallery": [],
+  "highlights": [
+    {
+      "desc": "[Why people come back for it]",
+      "image": "",
+      "title": "[Signature item 1]"
+    },
+    {
+      "desc": "[Why people come back for it]",
+      "image": "",
+      "title": "[Signature item 2]"
+    },
+    {
+      "desc": "[Why people come back for it]",
+      "image": "",
+      "title": "[Signature item 3]"
+    }
+  ],
+  "hours": [
+    {
+      "days": "Monday – Friday",
+      "time": "[8:00 am – 9:00 pm]"
+    },
+    {
+      "days": "Saturday – Sunday",
+      "time": "[9:00 am – 10:00 pm]"
+    }
+  ],
+  "menu": [
+    {
+      "items": [
+        {
+          "desc": "[Short description]",
+          "name": "[Item name]",
+          "price": "[₹000]",
+          "tags": [
+            "bestseller"
+          ]
+        },
+        {
+          "desc": "[Short description]",
+          "name": "[Item name]",
+          "price": "[₹000]",
+          "tags": []
+        },
+        {
+          "desc": "[Short description]",
+          "name": "[Item name]",
+          "price": "[₹000]",
+          "tags": [
+            "eggless"
+          ]
+        }
+      ],
+      "note": "[Out of the oven by 9 am]",
+      "section": "Breads"
+    },
+    {
+      "items": [
+        {
+          "desc": "[Short description]",
+          "name": "[Item name]",
+          "price": "[₹000]",
+          "tags": []
+        },
+        {
+          "desc": "[Short description]",
+          "name": "[Item name]",
+          "price": "[₹000]",
+          "tags": [
+            "eggless"
+          ]
+        },
+        {
+          "desc": "[Short description]",
+          "name": "[Item name]",
+          "price": "[₹000]",
+          "tags": [
+            "new"
+          ]
+        }
+      ],
+      "note": "",
+      "section": "Cakes & pastries"
+    },
+    {
+      "items": [
+        {
+          "desc": "[Short description]",
+          "name": "[Item name]",
+          "price": "[₹000]",
+          "tags": []
+        },
+        {
+          "desc": "[Short description]",
+          "name": "[Item name]",
+          "price": "[₹000]",
+          "tags": []
+        }
+      ],
+      "note": "",
+      "section": "Cookies & bakes"
+    },
+    {
+      "items": [
+        {
+          "desc": "[Short description]",
+          "name": "[Item name]",
+          "price": "[₹000]",
+          "tags": []
+        },
+        {
+          "desc": "[Short description]",
+          "name": "[Item name]",
+          "price": "[₹000]",
+          "tags": []
+        }
+      ],
+      "note": "",
+      "section": "Drinks"
+    }
+  ],
+  "name": "Dory's Bakehouse",
+  "special": {
+    "description": "[One or two lines about it: what's in it, why it's good.]",
+    "image": "",
+    "price": "[₹000]",
+    "show": true,
+    "title": "[This week's special]",
+    "validTill": "[Sunday]"
+  },
+  "tagline": "Baked this morning, in small batches."
+}
