@@ -152,10 +152,36 @@
     return h("div", { class: "field" }, [h("label", { for: id }, [f.label, help(f)]), input]);
   }
 
+  var directUpload = false;  // true when the server uses Cloudinary
+
+  // With Cloudinary: each photo goes straight from the browser to Cloudinary (the server only signs
+  // the request), so big phone photos never hit the server's upload size limit.
+  function uploadOneDirect(file, target) {
+    if (file.size > 10 * 1024 * 1024) return Promise.reject(new Error(file.name + " is over 10 MB. Choose a smaller photo."));
+    return api("POST", "/api/upload-signature", { target: target || "" }).then(function (sig) {
+      var fd = new FormData();
+      fd.append("file", file);
+      fd.append("api_key", sig.apiKey);
+      Object.keys(sig.params).forEach(function (k) { fd.append(k, sig.params[k]); });
+      return fetch(sig.url, { method: "POST", body: fd }).then(function (r) {
+        return r.json().then(function (j) {
+          if (!r.ok) throw new Error("Cloudinary: " + ((j.error && j.error.message) || "upload failed"));
+          return api("POST", "/api/uploaded", { secureUrl: j.secure_url });
+        });
+      }).then(function (j) { return j.src; });
+    });
+  }
+
   function upload(files, target) {
+    if (directUpload) {
+      var list = [].slice.call(files), out = [];
+      return list.reduce(function (p, f) {  // one at a time: gentler on slow phone connections
+        return p.then(function () { return uploadOneDirect(f, target).then(function (src) { out.push(src); }); });
+      }, Promise.resolve()).then(function () { return out; });
+    }
     var fd = new FormData();
     [].forEach.call(files, function (f) { fd.append("photo", f); });
-    return api("POST", "/api/upload" + (target ? "?target=" + target : ""), fd, true).then(function (j) { return j.files; });
+    return api("POST", "/api/upload", fd, true).then(function (j) { return j.files; });
   }
 
   function imageInput(f, obj) {
@@ -376,10 +402,9 @@
       card.innerHTML = "";
       if (!list.length) { card.appendChild(h("p", { class: "muted", text: "No earlier versions yet. One is kept each time you save." })); return; }
       var ul = h("ul");
-      list.forEach(function (stamp) {
-        var m = stamp.match(/(\d{4})(\d{2})(\d{2})-(\d{2})(\d{2})/);
-        var d = m ? new Date(+m[1], m[2] - 1, +m[3], +m[4], +m[5]) : null;
-        var label = d ? d.toLocaleString("en-IN", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" }) : stamp;
+      list.forEach(function (v) {
+        var d = new Date(v.saved), stamp = v.id;
+        var label = isNaN(d) ? v.saved : d.toLocaleString("en-IN", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" });
         ul.appendChild(h("li", {}, [h("span", { text: "Before save on " + label }),
           h("button", { class: "btn soft", type: "button", onclick: function () {
             if (dirty && !confirm("You have unsaved changes. Restoring will discard them. Continue?")) return;
@@ -419,7 +444,7 @@
     if (!dirty) return;
     var btn = $("#save"); btn.disabled = true; btn.textContent = "Saving…";
     api("PUT", "/api/content", data).then(function (j) {
-      $("#status").dataset.saved = "Saved at " + j.savedAt; setDirty(false); toast("Saved. The website is updated.");
+      $("#status").dataset.saved = "Saved at " + new Date().toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit" }); setDirty(false); toast("Saved. The website updates within a minute.");
     }).catch(function (e) { toast(e.message, true); btn.disabled = false; })
       .then(function () { btn.textContent = "Save changes"; });
   }
@@ -462,6 +487,6 @@
   });
   window.addEventListener("beforeunload", function (e) { if (dirty) { e.preventDefault(); e.returnValue = ""; } });
 
-  api("GET", "/api/me").then(function (j) { return j.loggedIn ? showApp() : showLogin(); })
+  api("GET", "/api/me").then(function (j) { directUpload = !!j.directUpload; return j.loggedIn ? showApp() : showLogin(); })
     .catch(function () { showLogin(); });
 })();
