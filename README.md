@@ -120,3 +120,4 @@ Run it behind HTTPS. The admin password is sent at login, so never run the admin
 ## Backups
 
 All text content lives in **`data/`** (and photos too, if Cloudinary isn't set). Download that folder regularly. With Cloudinary, the photos are already stored safely there.
+# dory
