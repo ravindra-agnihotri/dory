@@ -44,7 +44,7 @@ ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "")
 DATABASE_URL = os.environ.get("DATABASE_URL") or os.environ.get("POSTGRES_URL") or ""
 USE_DB = bool(DATABASE_URL)
 USE_CLOUDINARY = bool(os.environ.get("CLOUDINARY_URL"))
-CLOUDINARY_FOLDER = os.environ.get("CLOUDINARY_FOLDER", "dorys-bakehouse")
+CLOUDINARY_FOLDER = os.environ.get("CLOUDINARY_FOLDER", "dorys-gallery")
 # The Gallery page shows every photo in this Cloudinary folder. Set CLOUDINARY_GALLERY_FOLDER
 # to use a folder you already have (e.g. "dorys-gallery"); otherwise it's "<CLOUDINARY_FOLDER>/gallery".
 GALLERY_FOLDER = os.environ.get("CLOUDINARY_GALLERY_FOLDER", "").strip().strip("/") or f"{CLOUDINARY_FOLDER}/gallery"
