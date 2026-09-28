@@ -53,7 +53,7 @@ except ImportError:
 # Cloudinary: used for photos when CLOUDINARY_URL is set, otherwise photos go to data/uploads/
 #   CLOUDINARY_URL=cloudinary://<api_key>:<api_secret>@<cloud_name>   (Cloudinary dashboard → API Keys)
 USE_CLOUDINARY = bool(os.environ.get("CLOUDINARY_URL"))
-CLOUDINARY_FOLDER = os.environ.get("CLOUDINARY_FOLDER", "dorys-bakehouse")
+CLOUDINARY_FOLDER = os.environ.get("CLOUDINARY_FOLDER", "dorys-gallery")
 if USE_CLOUDINARY:
     import cloudinary
     import cloudinary.api
