@@ -91,7 +91,7 @@ cd dorys-bakehouse
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
-cp .env .env          # then open .env and fill it in
+cp .env.example .env          # then open .env and fill it in
 python3 app.py
 ```
 Site: http://localhost:5000, admin: http://localhost:5000/admin

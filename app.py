@@ -10,16 +10,18 @@ Storage
     With Cloudinary, the browser uploads photos straight to Cloudinary using a signature
     from this server, so large phone photos never pass through the server.
 
-Run locally: put your settings in a .env file (see .env), then
+Run locally: put your settings in a .env file (see .env.example), then
     pip install -r requirements.txt
     python3 app.py
 """
+import hashlib
 import hmac
 import io
 import json
 import os
 import secrets
 import shutil
+import threading
 import time
 import uuid
 from datetime import datetime, timezone
@@ -120,12 +122,17 @@ class DBStore:
         from psycopg.types.json import Jsonb
         self.psycopg, self.Jsonb, self.url, self.ready = psycopg, Jsonb, url, False
 
+    _schema_lock = threading.Lock()
+
     def conn(self):
         # prepare_threshold=None: no server-side prepared statements, so this works through
         # Supabase's poolers (the transaction pooler rejects them) as well as Neon or plain Postgres.
         c = self.psycopg.connect(self.url, autocommit=False, connect_timeout=10, prepare_threshold=None)
         if not self.ready:
-            with c.cursor() as cur:
+            with self._schema_lock, c.cursor() as cur:
+                # The advisory lock stops two server processes creating the tables at the same
+                # moment (Postgres' IF NOT EXISTS isn't safe against that race).
+                cur.execute("SELECT pg_advisory_xact_lock(727274)")
                 cur.execute("""
                     CREATE TABLE IF NOT EXISTS site_content (
                         id int PRIMARY KEY, data jsonb NOT NULL, updated_at timestamptz NOT NULL DEFAULT now());
@@ -329,6 +336,7 @@ def put_content():
     if err:
         return jsonify(error=err), 400
     store.save(data)
+    refresh_content_cache()
     return jsonify(ok=True)
 
 
@@ -345,6 +353,7 @@ def restore(vid):
     if data is None:
         abort(404)
     store.save(data)
+    refresh_content_cache()
     return jsonify(ok=True)
 
 
@@ -384,6 +393,7 @@ def uploaded():
     if not url.startswith(f"https://res.cloudinary.com/{cloud}/image/upload/"):
         return jsonify(error="That isn't a photo from this Cloudinary account."), 400
     _gallery_cache["at"] = 0  # show new gallery photos straight away
+    refresh_content_cache()
     return jsonify(src=delivery_url(url))
 
 
@@ -521,6 +531,7 @@ def gallery_list():
     if not USE_CLOUDINARY:
         return jsonify(source="local", folder=None, items=[])
     items = cloud_gallery(refresh=True)
+    refresh_content_cache()
     return jsonify(source="cloudinary", folder=GALLERY_FOLDER, items=items,
                    error=_gallery_cache["error"], report=_gallery_cache["report"])
 
@@ -573,6 +584,7 @@ def gallery_caption():
         app.logger.error("Caption update failed: %s", e)
         return jsonify(error="Couldn't save the caption to Cloudinary."), 502
     cloud_gallery(refresh=True)
+    refresh_content_cache()
     return jsonify(ok=True)
 
 
@@ -586,21 +598,80 @@ def gallery_delete():
         app.logger.error("Delete failed: %s", e)
         return jsonify(error="Couldn't delete the photo from Cloudinary."), 502
     cloud_gallery(refresh=True)
+    refresh_content_cache()
     return jsonify(ok=True)
 
 
 # ============================================================ public site
-@app.get("/content.js")
-def content_js():
+# Content changes only when someone saves in the admin, so the server keeps a ready-made copy in
+# memory instead of asking the database on every page view. Saving or restoring in the admin
+# refreshes it at once; edits made directly in the database show up within CONTENT_CACHE_SECONDS.
+CONTENT_CACHE_SECONDS = 300
+_content_cache = {"body": None, "etag": None, "at": 0.0, "gen": 0}
+_content_lock = threading.Lock()
+
+
+def _build_content_js():
     data = store.load()
     if USE_CLOUDINARY:
         data["gallery"] = [{"src": i["src"], "caption": i["caption"]} for i in cloud_gallery()]
-    body = json.dumps(data, ensure_ascii=False).replace("</", "<\\/")
-    resp = Response(f"window.DORYS = {body};\n", mimetype="application/javascript")
-    # Vercel's CDN keeps it for 60 s and serves the old copy while refreshing, so the database
-    # is hit about once a minute instead of on every page view. Browsers always recheck.
-    resp.headers["Cache-Control"] = "no-cache"
-    resp.headers["CDN-Cache-Control"] = "max-age=60, stale-while-revalidate=300"
+    body = "window.DORYS = " + json.dumps(data, ensure_ascii=False).replace("</", "<\\/") + ";\n"
+    return body, hashlib.sha1(body.encode()).hexdigest()[:16]
+
+
+def cached_content_js(force=False):
+    """Returns (body, etag, source). Never fails while a previous copy exists: if the database is
+    slow, paused or unreachable, visitors keep getting the last good content."""
+    c = _content_cache
+    if not force and c["body"] and time.time() - c["at"] < CONTENT_CACHE_SECONDS:
+        return c["body"], c["etag"], "memory"
+    with _content_lock:  # one rebuild at a time; others wait and reuse it
+        if not force and c["body"] and time.time() - c["at"] < CONTENT_CACHE_SECONDS:
+            return c["body"], c["etag"], "memory"
+        try:
+            gen = c["gen"]
+            body, etag = _build_content_js()
+            # If an admin save happened while we were reading, this copy may be outdated:
+            # serve it to this one request but keep it marked stale so the next one rebuilds.
+            c.update(body=body, etag=etag, at=time.time() if c["gen"] == gen else 0.0)
+            return body, etag, "database"
+        except Exception as e:
+            app.logger.error("Couldn't load content, serving the last good copy: %s", e)
+            if c["body"]:
+                c["at"] = time.time() - CONTENT_CACHE_SECONDS + 30  # retry in 30 s
+                return c["body"], c["etag"], "stale"
+            raise
+
+
+def refresh_content_cache():
+    _content_cache["gen"] += 1
+    _content_cache["at"] = 0.0
+
+
+def _warm_up():
+    """Load content and the gallery as soon as the server starts (e.g. after Render wakes it),
+    so the first visitor doesn't also wait for the database and Cloudinary."""
+    try:
+        cached_content_js(force=True)
+    except Exception as e:
+        app.logger.warning("Warm-up failed (will retry on first visit): %s", e)
+
+
+threading.Thread(target=_warm_up, daemon=True).start()
+
+
+@app.get("/content.js")
+def content_js():
+    t0 = time.perf_counter()
+    body, etag, source = cached_content_js()
+    ms = (time.perf_counter() - t0) * 1000
+    if request.headers.get("If-None-Match") == f'"{etag}"':
+        resp = Response(status=304)
+    else:
+        resp = Response(body, mimetype="application/javascript")
+    resp.headers["ETag"] = f'"{etag}"'
+    resp.headers["Cache-Control"] = "no-cache"  # browsers recheck each visit; unchanged = tiny 304
+    resp.headers["Server-Timing"] = f'content;desc="{source}";dur={ms:.1f}'
     return resp
 
 
@@ -648,7 +719,7 @@ def security_headers(resp):
 if __name__ == "__main__":
     if not ADMIN_PASSWORD:
         print("\n  ⚠  ADMIN_PASSWORD is not set, so admin login is disabled. Add it to .env\n")
-    port = int(os.environ.get("PORT", 8000))
+    port = int(os.environ.get("PORT", 5000))
     print("  Content: " + ("Postgres database" if USE_DB else f"file {CONTENT_FILE}"))
     print("  Photos:  " + (f"Cloudinary (folder '{CLOUDINARY_FOLDER}', gallery '{GALLERY_FOLDER}')"
                            if USE_CLOUDINARY else f"folder {UPLOAD_DIR}  (CLOUDINARY_URL not set)"))
