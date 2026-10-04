@@ -10,7 +10,7 @@ Storage
     With Cloudinary, the browser uploads photos straight to Cloudinary using a signature
     from this server, so large phone photos never pass through the server.
 
-Run locally: put your settings in a .env file (see .env.example), then
+Run locally: put your settings in a .env file (see .env), then
     pip install -r requirements.txt
     python3 app.py
 """
@@ -44,10 +44,15 @@ ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "")
 DATABASE_URL = os.environ.get("DATABASE_URL") or os.environ.get("POSTGRES_URL") or ""
 USE_DB = bool(DATABASE_URL)
 USE_CLOUDINARY = bool(os.environ.get("CLOUDINARY_URL"))
-CLOUDINARY_FOLDER = os.environ.get("CLOUDINARY_FOLDER", "dory-gallery")
+def _folder_env(name, default=""):
+    """Folder names from settings, forgiving common typos: spaces, quotes, leading/trailing slashes."""
+    return os.environ.get(name, "").strip().strip("\"'").strip().strip("/") or default
+
+
+CLOUDINARY_FOLDER = _folder_env("CLOUDINARY_FOLDER", "dorys-bakehouse")
 # The Gallery page shows every photo in this Cloudinary folder. Set CLOUDINARY_GALLERY_FOLDER
-# to use a folder you already have (e.g. "dorys-gallery"); otherwise it's "<CLOUDINARY_FOLDER>/gallery".
-GALLERY_FOLDER = os.environ.get("CLOUDINARY_GALLERY_FOLDER", "").strip().strip("/") or f"{CLOUDINARY_FOLDER}/gallery"
+# to use a folder you already have (e.g. "dory-gallery"); otherwise it's "<CLOUDINARY_FOLDER>/gallery".
+GALLERY_FOLDER = _folder_env("CLOUDINARY_GALLERY_FOLDER") or f"{CLOUDINARY_FOLDER}/gallery"
 MAX_UPLOAD_MB = 12
 MAX_IMAGE_PX = 1800
 KEEP_HISTORY = 30
@@ -72,6 +77,7 @@ if USE_CLOUDINARY:
     import cloudinary.api
     import cloudinary.uploader
     import cloudinary.utils
+    import cloudinary.search  # noqa: F401  (cloudinary.Search)
     cloudinary.config(secure=True)  # reads CLOUDINARY_URL from the environment
     # Hosts that force outbound traffic through a proxy (e.g. PythonAnywhere free: http://proxy.server:3128).
     _proxy = os.environ.get("CLOUDINARY_API_PROXY")
@@ -115,7 +121,9 @@ class DBStore:
         self.psycopg, self.Jsonb, self.url, self.ready = psycopg, Jsonb, url, False
 
     def conn(self):
-        c = self.psycopg.connect(self.url, autocommit=False, connect_timeout=10)
+        # prepare_threshold=None: no server-side prepared statements, so this works through
+        # Supabase's poolers (the transaction pooler rejects them) as well as Neon or plain Postgres.
+        c = self.psycopg.connect(self.url, autocommit=False, connect_timeout=10, prepare_threshold=None)
         if not self.ready:
             with c.cursor() as cur:
                 cur.execute("""
@@ -125,6 +133,12 @@ class DBStore:
                         id bigserial PRIMARY KEY, data jsonb NOT NULL, saved_at timestamptz NOT NULL DEFAULT now());
                     CREATE TABLE IF NOT EXISTS login_failures (
                         ip text PRIMARY KEY, count int NOT NULL, first_at double precision NOT NULL);
+                    -- Supabase publishes tables in the public schema through its web API. Row-level
+                    -- security with no policies blocks that API; this app connects as the tables'
+                    -- owner, which isn't affected. On Neon or plain Postgres this changes nothing.
+                    ALTER TABLE site_content ENABLE ROW LEVEL SECURITY;
+                    ALTER TABLE content_history ENABLE ROW LEVEL SECURITY;
+                    ALTER TABLE login_failures ENABLE ROW LEVEL SECURITY;
                 """)
             c.commit()
             self.ready = True
@@ -410,7 +424,7 @@ def too_big(_):
 
 # --------------------------------------------- gallery = Cloudinary folder
 GALLERY_CACHE_SECONDS = 300  # photos added in Cloudinary appear within 5 minutes; keeps API usage low
-_gallery_cache = {"items": None, "at": 0.0}
+_gallery_cache = {"items": None, "at": 0.0, "error": None, "report": []}
 
 
 def _fetch_all(call, *args, **opts):
@@ -425,32 +439,54 @@ def _fetch_all(call, *args, **opts):
     return out
 
 
-def _list_folder():
-    """Every photo in GALLERY_FOLDER. Tries both ways Cloudinary organises folders and merges them:
+def _search(expression):
+    def call(**opts):
+        q = (cloudinary.Search().expression(expression).with_field("context")
+             .max_results(opts.get("max_results", 500)))
+        if opts.get("next_cursor"):
+            q = q.next_cursor(opts["next_cursor"])
+        return q.execute()
+    return call
+
+
+def _listing_methods(folder):
+    """Every way Cloudinary can list a folder. Which ones work depends on the account:
     newer accounts ("dynamic folders") use asset_folder; older ones put the folder in the public_id."""
+    return [
+        ("asset folder", cloudinary.api.resources_by_asset_folder, (folder,), {}),
+        ("public ID prefix", cloudinary.api.resources, (),
+         {"type": "upload", "resource_type": "image", "prefix": folder + "/"}),
+        ("search", _search(f'resource_type:image AND (asset_folder="{folder}" OR folder="{folder}")'), (), {}),
+    ]
+
+
+def _list_folder():
+    """Every photo in GALLERY_FOLDER, merged from all listing methods that work on this account.
+    Returns (items, report) where report says what each method found or why it failed."""
     opts = dict(max_results=500, context=True)
-    found, errors = {}, []
-    for call, args, kw in (
-        (cloudinary.api.resources_by_asset_folder, (GALLERY_FOLDER,), {}),
-        (cloudinary.api.resources, (), {"type": "upload", "resource_type": "image", "prefix": GALLERY_FOLDER + "/"}),
-    ):
+    found, report = {}, []
+    for name, call, args, kw in _listing_methods(GALLERY_FOLDER):
         try:
-            for r in _fetch_all(call, *args, **kw, **opts):
+            rows = _fetch_all(call, *args, **kw, **opts)
+            for r in rows:
                 found.setdefault(r["public_id"], r)
-        except Exception as e:  # one method not supported on this account: use the other
-            errors.append(e)
-    if len(errors) == 2:
-        raise errors[0]
+            report.append({"method": name, "found": len(rows)})
+        except Exception as e:  # not supported on this account, or rejected: the others may still work
+            report.append({"method": name, "error": f"{type(e).__name__}: {e}"})
+    if found == {} and all("error" in r for r in report):
+        raise RuntimeError("; ".join(f"{r['method']}: {r['error']}" for r in report))
     items = []
     for r in found.values():
         if r.get("resource_type", "image") != "image":
             continue
-        custom = (r.get("context") or {}).get("custom") or {}
+        custom = (r.get("context") or {}).get("custom") or r.get("context") or {}
+        if not isinstance(custom, dict):
+            custom = {}
         items.append({"id": r["public_id"], "src": delivery_url(r["secure_url"]),
                       "caption": custom.get("caption") or custom.get("alt") or "",
                       "created": r.get("created_at", "")})
     items.sort(key=lambda i: i["created"], reverse=True)  # newest first
-    return items
+    return items, report
 
 
 def cloud_gallery(refresh=False):
@@ -459,10 +495,14 @@ def cloud_gallery(refresh=False):
     if _gallery_cache["items"] is not None and fresh and not refresh:
         return _gallery_cache["items"]
     try:
-        _gallery_cache["items"] = _list_folder()
-        _gallery_cache["at"] = time.time()
+        items, report = _list_folder()
+        _gallery_cache.update(items=items, at=time.time(), error=None, report=report)
+        failed = [r for r in report if "error" in r]
+        if failed and not items:
+            app.logger.warning("Cloudinary gallery '%s' is empty; failed methods: %s", GALLERY_FOLDER, failed)
     except Exception as e:
-        app.logger.error("Couldn't list Cloudinary gallery: %s", e)
+        _gallery_cache["error"] = str(e)
+        app.logger.error("Couldn't list Cloudinary gallery '%s': %s", GALLERY_FOLDER, e)
         if _gallery_cache["items"] is None:
             return []
     return _gallery_cache["items"]
@@ -480,7 +520,45 @@ def _gallery_item(public_id):
 def gallery_list():
     if not USE_CLOUDINARY:
         return jsonify(source="local", folder=None, items=[])
-    return jsonify(source="cloudinary", folder=GALLERY_FOLDER, items=cloud_gallery(refresh=True))
+    items = cloud_gallery(refresh=True)
+    return jsonify(source="cloudinary", folder=GALLERY_FOLDER, items=items,
+                   error=_gallery_cache["error"], report=_gallery_cache["report"])
+
+
+@app.get("/api/gallery/diagnose")
+@admin_required
+def gallery_diagnose():
+    """Admin-only check: open /api/gallery/diagnose in the browser while logged in to /admin.
+    Shows what the server is configured with and what Cloudinary returns. Never shows the secret."""
+    if not USE_CLOUDINARY:
+        return jsonify(cloudinary="off: CLOUDINARY_URL is not set on the server")
+    cfg = cloudinary.config()
+    out = {
+        "cloud_name": cfg.cloud_name,
+        "api_key_ends_with": str(cfg.api_key or "")[-4:],
+        "gallery_folder_used": GALLERY_FOLDER,
+        "gallery_folder_setting_raw": os.environ.get("CLOUDINARY_GALLERY_FOLDER"),
+        "upload_folder_used": CLOUDINARY_FOLDER,
+        "methods": [],
+    }
+    for name, call, args, kw in _listing_methods(GALLERY_FOLDER):
+        try:
+            res = call(*args, **kw, max_results=10)
+            out["methods"].append({"method": name, "found": len(res.get("resources", [])),
+                                   "sample_public_ids": [r["public_id"] for r in res.get("resources", [])][:5]})
+        except Exception as e:
+            out["methods"].append({"method": name, "error": f"{type(e).__name__}: {e}"})
+    try:  # the real folder names in this account, to catch spelling differences
+        out["folders_in_account"] = [f["path"] for f in cloudinary.api.root_folders().get("folders", [])]
+    except Exception as e:
+        out["folders_in_account"] = f"couldn't list: {type(e).__name__}: {e}"
+    try:  # the newest few images anywhere, with their folders
+        res = cloudinary.api.resources(type="upload", resource_type="image", max_results=5, direction="desc")
+        out["newest_images"] = [{"public_id": r["public_id"], "asset_folder": r.get("asset_folder"),
+                                 "folder": r.get("folder")} for r in res.get("resources", [])]
+    except Exception as e:
+        out["newest_images"] = f"couldn't list: {type(e).__name__}: {e}"
+    return jsonify(out)
 
 
 @app.put("/api/gallery/caption")

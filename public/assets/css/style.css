@@ -58,7 +58,9 @@ p { margin: 0 0 1em; max-width: 64ch; }
 /* ---------- Header ---------- */
 .site-header { background: var(--plum); color: var(--plum); position: sticky; top: 0; z-index: 50; }
 .site-header .bar { display: flex; align-items: center; justify-content: space-between; min-height: 72px; gap: 16px; }
-.brand { font-family: var(--display); font-size: 1.55rem; color: var(--butter); text-decoration: none; white-space: nowrap; }
+.brand { display: inline-flex; align-items: center; gap: 12px; font-family: var(--display); font-size: 1.45rem; color: var(--butter); text-decoration: none; white-space: nowrap; }
+.brand-logo { width: 56px; height: 56px; border-radius: 50%; display: block; flex-shrink: 0; box-shadow: 0 2px 10px rgba(0,0,0,.25); }
+.foot-logo { width: 96px; height: 96px; border-radius: 50%; display: block; margin-bottom: 14px; }
 .brand:hover { color: #fff; }
 .nav { display: flex; gap: 4px; align-items: center; }
 .nav a { color: #F6E9EE; text-decoration: none; padding: 8px 12px; border-radius: 999px; font-weight: 500; font-size: .98rem; }
@@ -223,4 +225,5 @@ fieldset { border: 0; padding: 0; margin: 0; }
   .form-card { padding: 22px; }
 }
 @media (max-width: 480px) { .foot-grid { grid-template-columns: 1fr; } }
+@media (max-width: 380px) { .brand-name { display: none; } .brand-logo { width: 52px; height: 52px; } }
 @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }

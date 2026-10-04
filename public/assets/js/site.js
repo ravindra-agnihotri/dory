@@ -34,6 +34,8 @@
 
   /* ---------- Shared bits (footer, contact) ---------- */
   set("[data-name]", esc(D.name));
+  // Browser-tab title follows the bakery name set in the admin
+  if (D.name && D.name !== "Dory's Bakehouse") document.title = document.title.split("Dory's Bakehouse").join(D.name);
   set("[data-tagline]", t(D.tagline));
   set("[data-address]", t(C.address));
   set("[data-phone]", isPh(C.phone) ? t(C.phone) : '<a href="' + telLink() + '">' + esc(C.phone) + "</a>");
