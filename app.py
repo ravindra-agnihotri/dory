@@ -19,6 +19,7 @@ import hmac
 import io
 import json
 import os
+import re
 import secrets
 import shutil
 import threading
@@ -34,7 +35,8 @@ try:  # local development: read settings from .env
 except ImportError:
     pass
 
-from flask import Flask, Response, abort, jsonify, request, send_from_directory, session
+from flask import Flask, Response, abort, jsonify, redirect, request, send_from_directory, session
+from markupsafe import escape
 
 BASE = Path(__file__).resolve().parent
 SITE_DIR = BASE / "public"          # public site; on Vercel these are served straight from the CDN
@@ -607,7 +609,7 @@ def gallery_delete():
 # memory instead of asking the database on every page view. Saving or restoring in the admin
 # refreshes it at once; edits made directly in the database show up within CONTENT_CACHE_SECONDS.
 CONTENT_CACHE_SECONDS = 300
-_content_cache = {"body": None, "etag": None, "at": 0.0, "gen": 0}
+_content_cache = {"body": None, "etag": None, "data": None, "at": 0.0, "gen": 0}
 _content_lock = threading.Lock()
 
 
@@ -616,7 +618,7 @@ def _build_content_js():
     if USE_CLOUDINARY:
         data["gallery"] = [{"src": i["src"], "caption": i["caption"]} for i in cloud_gallery()]
     body = "window.DORYS = " + json.dumps(data, ensure_ascii=False).replace("</", "<\\/") + ";\n"
-    return body, hashlib.sha1(body.encode()).hexdigest()[:16]
+    return body, hashlib.sha1(body.encode()).hexdigest()[:16], data
 
 
 def cached_content_js(force=False):
@@ -630,10 +632,10 @@ def cached_content_js(force=False):
             return c["body"], c["etag"], "memory"
         try:
             gen = c["gen"]
-            body, etag = _build_content_js()
+            body, etag, data = _build_content_js()
             # If an admin save happened while we were reading, this copy may be outdated:
             # serve it to this one request but keep it marked stale so the next one rebuilds.
-            c.update(body=body, etag=etag, at=time.time() if c["gen"] == gen else 0.0)
+            c.update(body=body, etag=etag, data=data, at=time.time() if c["gen"] == gen else 0.0)
             return body, etag, "database"
         except Exception as e:
             app.logger.error("Couldn't load content, serving the last good copy: %s", e)
@@ -693,17 +695,227 @@ def admin_assets(name):
     return send_from_directory(ADMIN_DIR, name)
 
 
+# ============================================================== SEO
+# The site's main address. Search engines are told this is the one true URL for each page,
+# and visits to the Render address (*.onrender.com) are redirected here.
+SITE_URL = os.environ.get("SITE_URL", "https://www.dorysbakes.com").strip().rstrip("/")
+SITE_HOST = SITE_URL.split("://", 1)[-1].split("/", 1)[0].lower()
+REDIRECT_RENDER_HOST = os.environ.get("REDIRECT_RENDER_HOST", "1") == "1"
+PAGES = ["index.html", "menu.html", "cakes.html", "gallery.html", "about.html", "contact.html"]
+DEFAULT_NAME = "Dory's Bakehouse"
+
+
+def _ph(v):
+    return not str(v or "").strip() or bool(re.search(r"\[.*\]", str(v)))
+
+
+def _site_content():
+    """The content dict for SEO tags, from the in-memory copy. Falls back to defaults."""
+    try:
+        cached_content_js()
+        return _content_cache.get("data") or {}
+    except Exception:
+        return {}
+
+
+_DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+
+
+def _parse_days(text):
+    t = str(text).lower()
+    if re.search(r"every ?day|daily|all week|7 days|mon(day)?\s*[-–—to]+\s*sun(day)?", t):
+        return _DAYS[:]
+    found = [i for i, d in enumerate(_DAYS) if re.search(r"\b" + d[:3].lower(), t)]
+    if not found:
+        return []
+    if len(found) == 2 and re.search(r"[-–—]|\bto\b", t):  # a range like "Mon – Fri"
+        a, b = found
+        return [_DAYS[i % 7] for i in range(a, (b if b >= a else b + 7) + 1)]
+    return [_DAYS[i] for i in found]
+
+
+def _parse_time(text):
+    m = re.match(r"\s*(\d{1,2})(?:[:.](\d{2}))?\s*(am|pm|a\.m\.|p\.m\.)?\s*$", text, re.I)
+    if not m:
+        return None
+    h, mi, ap = int(m.group(1)), int(m.group(2) or 0), (m.group(3) or "").lower().replace(".", "")
+    if ap == "pm" and h < 12:
+        h += 12
+    if ap == "am" and h == 12:
+        h = 0
+    return f"{h:02d}:{mi:02d}" if h < 24 and mi < 60 else None
+
+
+def _opening_hours(hours):
+    out = []
+    for row in hours or []:
+        if _ph(row.get("days")) or _ph(row.get("time")) or re.search(r"closed", str(row.get("time")), re.I):
+            continue
+        days = _parse_days(row["days"])
+        parts = re.split(r"\s*(?:[-–—]|to)\s*", str(row["time"]).strip(), maxsplit=1)
+        if not days or len(parts) != 2:
+            continue
+        opens, closes = _parse_time(parts[0]), _parse_time(parts[1])
+        if opens and closes:
+            out.append({"@type": "OpeningHoursSpecification", "dayOfWeek": days, "opens": opens, "closes": closes})
+    return out
+
+
+def _business_jsonld(d):
+    c = d.get("contact") or {}
+    name = d.get("name") if not _ph(d.get("name")) else DEFAULT_NAME
+    j = {"@context": "https://schema.org", "@type": "Bakery", "@id": SITE_URL + "/#bakery",
+         "name": name, "url": SITE_URL + "/",
+         "logo": SITE_URL + "/assets/images/logo-512.png",
+         "image": [SITE_URL + "/assets/images/og-image.jpg", SITE_URL + "/assets/images/logo-512.png"],
+         "servesCuisine": ["Bakery", "Cakes", "Desserts"], "priceRange": "₹₹",
+         "hasMenu": SITE_URL + "/menu.html"}
+    if not _ph(d.get("tagline")):
+        j["description"] = d["tagline"]
+    if not _ph(c.get("phone")):
+        j["telephone"] = re.sub(r"[^\d+]", "", c["phone"])
+    if not _ph(c.get("email")):
+        j["email"] = c["email"]
+    if not _ph(c.get("address")):
+        j["address"] = {"@type": "PostalAddress", "streetAddress": " ".join(str(c["address"]).split()), "addressCountry": "IN"}
+    if not _ph(c.get("mapLink")):
+        j["hasMap"] = c["mapLink"]
+    same = []
+    if not _ph(c.get("instagram")):
+        same.append("https://www.instagram.com/" + str(c["instagram"]).lstrip("@").split("instagram.com/")[-1].strip("/"))
+    if same:
+        j["sameAs"] = same
+    oh = _opening_hours(d.get("hours"))
+    if oh:
+        j["openingHoursSpecification"] = oh
+    return j
+
+
+def _menu_jsonld(d):
+    sections = []
+    for s in d.get("menu") or []:
+        items = []
+        for i in s.get("items") or []:
+            if _ph(i.get("name")):
+                continue
+            item = {"@type": "MenuItem", "name": i["name"]}
+            if not _ph(i.get("desc")):
+                item["description"] = i["desc"]
+            m = re.search(r"\d[\d,]*(?:\.\d+)?", str(i.get("price") or ""))
+            if m and not _ph(i.get("price")):
+                item["offers"] = {"@type": "Offer", "price": m.group(0).replace(",", ""), "priceCurrency": "INR"}
+            items.append(item)
+        if items and not _ph(s.get("section")):
+            sections.append({"@type": "MenuSection", "name": s["section"], "hasMenuItem": items})
+    if not sections:
+        return None
+    return {"@context": "https://schema.org", "@type": "Menu", "name": "Menu", "url": SITE_URL + "/menu.html",
+            "hasMenuSection": sections}
+
+
+def _ld(obj):
+    return '<script type="application/ld+json">' + json.dumps(obj, ensure_ascii=False).replace("</", "<\\/") + "</script>"
+
+
+_page_files = {}
+
+
+def _page_source(name):
+    f = SITE_DIR / name
+    mtime = f.stat().st_mtime
+    hit = _page_files.get(name)
+    if not hit or hit[0] != mtime:
+        hit = (mtime, f.read_text(encoding="utf-8"))
+        _page_files[name] = hit
+    return hit[1]
+
+
+def render_page(name):
+    """Serve a page with SEO tags filled in from the current content: the bakery's name in the
+    title and link previews, the canonical address, and business details for Google."""
+    html = _page_source(name)
+    d = _site_content()
+    head, sep, body = html.partition("</head>")
+    nm = d.get("name") if not _ph(d.get("name")) else DEFAULT_NAME
+    if nm != DEFAULT_NAME:
+        head = head.replace(DEFAULT_NAME, str(escape(nm)))
+    head = head.replace("https://dorysbakes.com", SITE_URL)
+    path = "/" if name == "index.html" else "/" + name
+    extra = []
+    if request.args.get("preview"):
+        extra.append('<meta name="robots" content="noindex">')
+    else:
+        extra.append(f'<link rel="canonical" href="{SITE_URL}{path}">')
+    extra.append('<meta property="og:site_name" content="' + str(escape(nm)) + '">')
+    extra.append('<meta property="og:locale" content="en_IN">')
+    if name in ("index.html", "contact.html", "about.html"):
+        extra.append(_ld(_business_jsonld(d)))
+    if name == "menu.html":
+        m = _menu_jsonld(d)
+        if m:
+            extra.append(_ld(m))
+    extra.append(_ld({"@context": "https://schema.org", "@type": "WebSite", "name": nm, "url": SITE_URL + "/"})
+                 if name == "index.html" else "")
+    resp = Response(head + "\n".join(x for x in extra if x) + "\n" + sep + body, mimetype="text/html")
+    resp.headers["Cache-Control"] = "no-cache"
+    return resp
+
+
+@app.before_request
+def redirect_to_main_domain():
+    """Visits to the Render address go to the real domain, so Google sees one site, not two."""
+    host = (request.host or "").split(":")[0].lower()
+    if (REDIRECT_RENDER_HOST and host.endswith(".onrender.com") and host != SITE_HOST
+            and request.method in ("GET", "HEAD") and not request.path.startswith(("/api/", "/healthz"))):
+        qs = request.query_string.decode()
+        return redirect(SITE_URL + request.path + ("?" + qs if qs else ""), code=301)
+
+
+@app.get("/healthz")
+def healthz():
+    return "ok"
+
+
+@app.get("/robots.txt")
+def robots():
+    body = ("User-agent: *\n"
+            "Disallow: /admin\n"
+            "Disallow: /api/\n"
+            "Disallow: /*?preview=\n"
+            f"\nSitemap: {SITE_URL}/sitemap.xml\n")
+    return Response(body, mimetype="text/plain")
+
+
+@app.get("/sitemap.xml")
+def sitemap():
+    today = datetime.now(timezone.utc).date().isoformat()
+    urls = "".join(
+        f"<url><loc>{SITE_URL}{'/' if p == 'index.html' else '/' + p}</loc><lastmod>{today}</lastmod>"
+        f"<priority>{'1.0' if p == 'index.html' else '0.8'}</priority></url>"
+        for p in PAGES)
+    xml = ('<?xml version="1.0" encoding="UTF-8"?>'
+           '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">' + urls + "</urlset>")
+    return Response(xml, mimetype="application/xml")
+
+
 # Locally Flask serves the site; on Vercel the CDN serves public/ before requests reach Flask.
 @app.get("/")
 def home():
-    return send_from_directory(SITE_DIR, "index.html")
+    return render_page("index.html")
 
 
 @app.get("/<path:name>")
 def site_files(name):
     if not (SITE_DIR / name).is_file() and (SITE_DIR / f"{name}.html").is_file():
         name = f"{name}.html"  # allow /menu as well as /menu.html
-    return send_from_directory(SITE_DIR, name)
+    if name.endswith(".html") and (SITE_DIR / name).is_file() and "/" not in name:
+        return render_page(name)
+    resp = send_from_directory(SITE_DIR, name)
+    if name.startswith("assets/images/"):
+        resp.headers["Cache-Control"] = "public, max-age=2592000"  # 30 days: logos and icons rarely change
+    elif name.startswith("assets/"):
+        resp.headers["Cache-Control"] = "public, max-age=3600"  # 1 hour: CSS/JS update soon after a deploy
+    return resp
 
 
 @app.after_request

@@ -116,3 +116,21 @@ update it on your host, and redeploy.
 ## Free-plan limits worth knowing
 - **Neon** pauses the database when idle; the first request after a quiet spell takes about a second longer. The site's content is cached at the edge on Vercel, so visitors rarely notice.
 - **Cloudinary free** has monthly credits (storage + bandwidth). A bakery site uses a small fraction of them.
+
+## Unfinished content, preview and SEO
+
+- **Anything still in `[square brackets]` is hidden from visitors.** A menu item without a real name, hours without real times,
+  an empty special, etc. simply don't appear. Open **Preview site** in the admin (or add `?preview=1` to any page) to see them
+  highlighted in yellow. Preview pages are hidden from Google.
+- **Prices:** type just the number (`120`) and it shows as `₹120`. Text like `from 450` is shown as written.
+- **Search engines:** the server adds a canonical address, link-preview tags and Google business details (name, phone, address,
+  opening hours, Instagram, menu with prices) to each page from the admin content, plus `/robots.txt` and `/sitemap.xml`.
+  Visits to the `*.onrender.com` address redirect to the main domain.
+
+| Setting | Default | What it does |
+|---|---|---|
+| `SITE_URL` | `https://www.dorysbakes.com` | The main address used in canonical tags, the sitemap and the redirect |
+| `REDIRECT_RENDER_HOST` | `1` | Set to `0` to stop redirecting the onrender.com address |
+
+After deploying: add the site in **Google Search Console** (search.google.com/search-console), submit
+`https://www.dorysbakes.com/sitemap.xml`, and check the business details with Google's **Rich Results Test**.

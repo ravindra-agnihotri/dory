@@ -1,26 +1,75 @@
-/* Dory's Bakehouse: renders content.js into the pages. No edits needed here. */
+/* Dory's Bakehouse: renders content.js into the pages. No edits needed here.
+
+   Anything still containing [square-bracket] placeholder text is HIDDEN from visitors.
+   To see those unfinished items highlighted in yellow, open any page with ?preview=1
+   (the admin's "Preview site" button does this). */
 (function () {
   var D = window.DORYS || {};
   var C = D.contact || {};
+  var PREVIEW = /[?&]preview=1\b/.test(location.search);
+  var NAME = D.name && !isPh(D.name) ? D.name : "Dory's Bakehouse";
 
   function esc(s) {
     return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) {
       return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
     });
   }
-  // Escape text, and highlight anything still in [square brackets]
+  function isPh(s) { return /\[.*\]/.test(String(s || "")); }
+  // Is this value finished enough to show? In preview mode, unfinished values show (highlighted).
+  function ok(s) { s = String(s == null ? "" : s).trim(); return !!s && (PREVIEW || !isPh(s)); }
+  // Escape text; in preview, highlight [placeholders]
   function t(s) { return esc(s).replace(/\[([^\]]*)\]/g, '<span class="ph">$1</span>'); }
-  function isPh(s) { return !s || /\[.*\]/.test(String(s)); }
   function $(sel) { return document.querySelector(sel); }
   function $all(sel) { return Array.prototype.slice.call(document.querySelectorAll(sel)); }
-  function set(sel, html) { $all(sel).forEach(function (el) { el.innerHTML = html; }); }
+  function hide(el) { if (el) { el.hidden = true; el.setAttribute("aria-hidden", "true"); } }
+  // The block an element lives in, which disappears when there's nothing to show
+  function box(el) { return el.closest("li, tr, p") || el; }
+  // Fill every [sel] with html when the value is finished; otherwise hide its line
+  function put(sel, value, html) {
+    $all(sel).forEach(function (el) {
+      if (ok(value)) { el.innerHTML = html === undefined ? t(value) : html; }
+      else hide(box(el));
+    });
+  }
+
+  // 120 → ₹120; 1500 → ₹1,500. Anything else (₹120, "from 450", "Ask us") is left as written.
+  function price(p) {
+    var s = String(p == null ? "" : p).trim();
+    return /^\d+(\.\d{1,2})?$/.test(s) ? "₹" + Number(s).toLocaleString("en-IN") : s;
+  }
+
+  // Cloudinary photos at the size the screen needs instead of one large size for everyone
+  function isCld(src) { return /^https:\/\/res\.cloudinary\.com\/[^/]+\/image\/upload\//.test(String(src || "")); }
+  function cld(src, w) {
+    if (!isCld(src)) return src;
+    return src.replace(/\/image\/upload\/(?:f_auto,q_auto(?:,c_limit,w_\d+)?\/)?/, "/image/upload/f_auto,q_auto,c_limit,w_" + w + "/");
+  }
+  function img(src, alt, widths, sizes, extra) {
+    src = String(src || "");
+    var local = /^https?:\/\//.test(src) ? src : "/" + src.replace(/^\//, "");
+    if (!isCld(src)) return '<img src="' + esc(local) + '" alt="' + esc(alt) + '"' + (extra || "") + ">";
+    var set = widths.map(function (w) { return esc(cld(src, w)) + " " + w + "w"; }).join(", ");
+    return '<img src="' + esc(cld(src, widths[Math.min(1, widths.length - 1)])) + '" srcset="' + set +
+      '" sizes="' + sizes + '" alt="' + esc(alt) + '"' + (extra || "") + ">";
+  }
 
   function waNumber() { return String(C.whatsapp || "").replace(/\D/g, ""); }
-  function waLink(msg) {
-    var n = waNumber();
-    return "https://wa.me/" + n + (msg ? "?text=" + encodeURIComponent(msg) : "");
-  }
+  function hasWa() { return waNumber().length >= 10 && !isPh(C.whatsapp); }
+  function waLink(msg) { return "https://wa.me/" + waNumber() + (msg ? "?text=" + encodeURIComponent(msg) : ""); }
   function telLink() { return "tel:" + String(C.phone || "").replace(/[^\d+]/g, ""); }
+  function igHandle() { return String(C.instagram || "").replace(/^@/, "").replace(/^https?:\/\/(www\.)?instagram\.com\//, "").replace(/\/.*$/, ""); }
+
+  /* ---------- Preview mode ---------- */
+  if (PREVIEW) {
+    $all('a[href$=".html"], a[href="/"]').forEach(function (a) {
+      if (a.getAttribute("href").indexOf("?") < 0) a.setAttribute("href", a.getAttribute("href") + "?preview=1");
+    });
+    var bar = document.createElement("div");
+    bar.className = "preview-bar";
+    bar.innerHTML = "Preview: items highlighted in yellow are unfinished and are <strong>hidden from visitors</strong>. " +
+      '<a href="' + location.pathname + '">See what visitors see</a>';
+    document.body.appendChild(bar);
+  }
 
   /* ---------- Nav ---------- */
   var toggle = $(".menu-toggle"), nav = $(".nav");
@@ -32,121 +81,196 @@
     });
   }
 
-  /* ---------- Shared bits (footer, contact) ---------- */
-  set("[data-name]", esc(D.name));
-  // Browser-tab title follows the bakery name set in the admin
-  if (D.name && D.name !== "Dory's Bakehouse") document.title = document.title.split("Dory's Bakehouse").join(D.name);
-  set("[data-tagline]", t(D.tagline));
-  set("[data-address]", t(C.address));
-  set("[data-phone]", isPh(C.phone) ? t(C.phone) : '<a href="' + telLink() + '">' + esc(C.phone) + "</a>");
-  set("[data-email]", isPh(C.email) ? t(C.email) : '<a href="mailto:' + esc(C.email) + '">' + esc(C.email) + "</a>");
-  set("[data-instagram]", isPh(C.instagram) ? t(C.instagram) :
-    '<a href="https://instagram.com/' + esc(C.instagram) + '" target="_blank" rel="noopener">@' + esc(C.instagram) + "</a>");
-  set("[data-hours]", (D.hours || []).map(function (h) {
-    return "<li>" + t(h.days) + "<br><strong>" + t(h.time) + "</strong></li>";
-  }).join(""));
-  set("[data-hours-table]", (D.hours || []).map(function (h) {
-    return "<tr><td>" + t(h.days) + "</td><td>" + t(h.time) + "</td></tr>";
-  }).join(""));
-  $all("[data-maplink]").forEach(function (a) { if (!isPh(C.mapLink)) a.href = C.mapLink; else a.removeAttribute("href"); });
+  /* ---------- Shared bits (header, footer, contact) ---------- */
+  $all("[data-name]").forEach(function (el) { el.textContent = NAME; });
+  if (NAME !== "Dory's Bakehouse") document.title = document.title.split("Dory's Bakehouse").join(NAME);
+  put("[data-tagline]", D.tagline);
+  put("[data-address]", C.address, t(C.address).replace(/\n/g, "<br>"));
+  put("[data-phone]", C.phone, '<a href="' + telLink() + '">' + esc(C.phone) + "</a>");
+  put("[data-email]", C.email, '<a href="mailto:' + esc(C.email) + '">' + esc(C.email) + "</a>");
+  put("[data-instagram]", C.instagram, '<a href="https://instagram.com/' + esc(igHandle()) + '" target="_blank" rel="noopener">@' + esc(igHandle()) + "</a>");
+
+  var hours = (D.hours || []).filter(function (h) { return ok(h.days) && ok(h.time); });
+  $all("[data-hours]").forEach(function (el) {
+    if (!hours.length) return hide(el.parentElement);
+    el.innerHTML = hours.map(function (h) { return "<li>" + t(h.days) + "<br><strong>" + t(h.time) + "</strong></li>"; }).join("");
+  });
+  $all("[data-hours-table]").forEach(function (el) {
+    var table = el.closest("table");
+    if (!hours.length) { hide(table); if (table && table.previousElementSibling) hide(table.previousElementSibling); return; }
+    el.innerHTML = hours.map(function (h) { return "<tr><td>" + t(h.days) + "</td><td>" + t(h.time) + "</td></tr>"; }).join("");
+  });
+
+  $all("[data-maplink]").forEach(function (a) {
+    if (ok(C.mapLink) && !isPh(C.mapLink)) a.href = C.mapLink;
+    else hide(a.closest("p") || a);
+  });
   $all("[data-wa]").forEach(function (a) {
-    a.href = waLink("Hi Dory's! ");
+    if (!hasWa()) return hide(a.classList.contains("wa-float") ? a : (a.closest("p") || a));
+    a.href = waLink("Hi " + NAME + "! ");
     a.target = "_blank"; a.rel = "noopener";
   });
-  set("[data-year]", new Date().getFullYear());
+  $all("[data-year]").forEach(function (el) { el.textContent = new Date().getFullYear(); });
+
+  // An address/hours/phone column with nothing left in it disappears too
+  $all(".visit .inner > div, .foot-grid > div").forEach(function (col) {
+    if (col.querySelector("img, picture")) return;  // the logo column always stays
+    var visible = Array.prototype.some.call(col.querySelectorAll("p, li, ul, a.btn"), function (n) { return !n.closest("[hidden]"); });
+    if (!visible) hide(col);
+  });
 
   /* ---------- Home: special ---------- */
   var sp = D.special || {}, spEl = $("#special");
   if (spEl) {
-    if (!sp.show) { spEl.remove(); }
-    else {
+    if (!sp.show || !ok(sp.title)) {
+      spEl.remove();
+      var hg = $(".hero-grid"); if (hg) hg.classList.add("solo");
+    } else {
       spEl.innerHTML =
-        (sp.image ? '<img src="' + esc(sp.image) + '" alt="' + esc(sp.title) + '">' : "") +
+        (sp.image ? img(sp.image, sp.title, [480, 960], "(max-width: 900px) 92vw, 480px") : "") +
         '<div class="kicker">This week\'s special</div>' +
         "<h2>" + t(sp.title) + "</h2>" +
-        "<p>" + t(sp.description) + "</p>" +
-        '<div class="foot"><span class="price">' + t(sp.price) + "</span>" +
-        "<span>Until " + t(sp.validTill) + "</span></div>";
+        (ok(sp.description) ? "<p>" + t(sp.description) + "</p>" : "") +
+        ((ok(sp.price) || ok(sp.validTill)) ? '<div class="foot"><span class="price">' + (ok(sp.price) ? t(price(sp.price)) : "") + "</span>" +
+          (ok(sp.validTill) ? "<span>Until " + t(sp.validTill) + "</span>" : "") + "</div>" : "");
     }
   }
 
   /* ---------- Home: highlights ---------- */
-  set("#highlights", (D.highlights || []).map(function (h) {
-    return '<article class="highlight"><div class="img">' +
-      (h.image ? '<img src="' + esc(h.image) + '" alt="' + esc(h.title) + '" loading="lazy">' : "Photo") +
-      "</div><h3>" + t(h.title) + "</h3><p class=\"muted\">" + t(h.desc) + "</p></article>";
-  }).join(""));
+  var hl = (D.highlights || []).filter(function (h) { return ok(h.title); });
+  var hlEl = $("#highlights");
+  if (hlEl) {
+    if (!hl.length) hide(hlEl.closest("section"));
+    else hlEl.innerHTML = hl.map(function (h) {
+      return '<article class="highlight"><div class="img">' +
+        (h.image ? img(h.image, h.title, [240, 480], "240px", ' loading="lazy"') : '<span aria-hidden="true">' + esc(NAME.charAt(0)) + "</span>") +
+        "</div><h3>" + t(h.title) + "</h3>" + (ok(h.desc) ? '<p class="muted">' + t(h.desc) + "</p>" : "") + "</article>";
+    }).join("");
+  }
 
   /* ---------- Menu ---------- */
   function slug(s) { return String(s).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, ""); }
-  var menu = D.menu || [];
-  set("#menu-tabs", menu.map(function (s) {
-    return '<a href="#' + slug(s.section) + '">' + esc(s.section) + "</a>";
-  }).join(""));
-  set("#menu", menu.map(function (s) {
-    return '<section class="menu-section" id="' + slug(s.section) + '"><header><h2>' + t(s.section) + "</h2>" +
-      (s.note ? '<span class="muted">' + t(s.note) + "</span>" : "") + '</header><ul class="menu-list">' +
-      (s.items || []).map(function (i) {
-        var tags = (i.tags || []).map(function (g) { return '<span class="tag ' + esc(g) + '">' + esc(g) + "</span>"; }).join("");
-        return '<li class="menu-item"><span class="name">' + t(i.name) + tags + '</span><span class="price">' + t(i.price) + "</span>" +
-          (i.desc ? '<p class="desc">' + t(i.desc) + "</p>" : "") + "</li>";
-      }).join("") + "</ul></section>";
-  }).join(""));
+  var menu = (D.menu || []).map(function (s) {
+    return { section: s.section, note: s.note, items: (s.items || []).filter(function (i) { return ok(i.name); }) };
+  }).filter(function (s) { return ok(s.section) && s.items.length; });
+  var menuEl = $("#menu");
+  if (menuEl) {
+    if (!menu.length) {
+      hide($("#menu-tabs"));
+      menuEl.innerHTML = '<div class="empty"><h2>Our menu is being updated</h2><p class="muted">Ask us what\'s fresh today.</p>' +
+        (hasWa() ? '<a class="btn" href="' + esc(waLink("Hi " + NAME + "! What's fresh today?")) + '" target="_blank" rel="noopener">Ask on WhatsApp</a>' : "") + "</div>";
+    } else {
+      $("#menu-tabs").innerHTML = menu.map(function (s) { return '<a href="#' + slug(s.section) + '">' + esc(s.section) + "</a>"; }).join("");
+      menuEl.innerHTML = menu.map(function (s) {
+        return '<section class="menu-section" id="' + slug(s.section) + '"><header><h2>' + t(s.section) + "</h2>" +
+          (ok(s.note) ? '<span class="muted">' + t(s.note) + "</span>" : "") + '</header><ul class="menu-list">' +
+          s.items.map(function (i) {
+            var tags = (i.tags || []).map(function (g) { return '<span class="tag ' + esc(slug(g)) + '">' + esc(g) + "</span>"; }).join("");
+            return '<li class="menu-item"><span class="name">' + t(i.name) + tags + "</span>" +
+              '<span class="price">' + (ok(i.price) ? t(price(i.price)) : "") + "</span>" +
+              (ok(i.desc) ? '<p class="desc">' + t(i.desc) + "</p>" : "") + "</li>";
+          }).join("") + "</ul></section>";
+      }).join("");
+    }
+  }
 
   /* ---------- About ---------- */
   var A = D.about || {};
-  set("#about-heading", t(A.heading));
-  set("#about-story", (A.story || []).map(function (p) { return "<p>" + t(p) + "</p>"; }).join(""));
-  set("#about-portrait", A.image ? '<img src="' + esc(A.image) + '" alt="Dory at the bakehouse">' : "Photo of Dory");
-  set("#values", (A.values || []).map(function (v) {
-    return "<div><h3>" + t(v.title) + "</h3><p class=\"muted\">" + t(v.desc) + "</p></div>";
-  }).join(""));
+  var story = (A.story || []).filter(ok);
+  var values = (A.values || []).filter(function (v) { return ok(v.title); });
+  if ($("#about-heading")) {
+    if (ok(A.heading)) $("#about-heading").innerHTML = t(A.heading);
+    else $("#about-heading").textContent = "Our story";
+    $("#about-story").innerHTML = story.length ? story.map(function (p) { return "<p>" + t(p) + "</p>"; }).join("")
+      : "<p>Fresh bakes and celebration cakes, made by hand. Our full story is coming soon.</p>";
+    var portrait = $("#about-portrait");
+    if (A.image) portrait.innerHTML = img(A.image, "Inside " + NAME, [500, 1000], "(max-width: 900px) 92vw, 440px");
+    else { hide(portrait); var ag = portrait.closest(".about-grid"); if (ag) ag.classList.add("solo"); }
+  }
+  var valEl = $("#values");
+  if (valEl) {
+    if (!values.length) hide(valEl.closest("section"));
+    else valEl.innerHTML = values.map(function (v) {
+      return "<div><h3>" + t(v.title) + "</h3>" + (ok(v.desc) ? '<p class="muted">' + t(v.desc) + "</p>" : "") + "</div>";
+    }).join("");
+  }
 
   /* ---------- Gallery ---------- */
   var gal = $("#gallery");
   if (gal) {
     var g = D.gallery || [];
-    gal.innerHTML = g.length
-      ? '<div class="gallery">' + g.map(function (p) {
-          return '<figure><img src="' + esc(p.src) + '" alt="' + esc(p.caption || "") + '" loading="lazy">' +
-            (p.caption ? "<figcaption>" + esc(p.caption) + "</figcaption>" : "") + "</figure>";
-        }).join("") + "</div>"
-      : '<div class="empty"><h2>Photos coming soon</h2><p class="muted">Until then, our latest bakes are on Instagram.</p>' +
-        '<a class="btn" data-ig href="#">See our Instagram</a></div>';
-    var ig = gal.querySelector("[data-ig]");
-    if (ig) { if (isPh(C.instagram)) ig.removeAttribute("href"); else { ig.href = "https://instagram.com/" + C.instagram; ig.target = "_blank"; ig.rel = "noopener"; } }
+    if (g.length) {
+      gal.innerHTML = '<div class="gallery">' + g.map(function (p, i) {
+        var alt = p.caption || (NAME + " bake, photo " + (i + 1));
+        return "<figure>" + img(p.src, alt, [400, 800, 1200], "(max-width: 640px) 92vw, (max-width: 1000px) 45vw, 360px",
+          ' loading="' + (i < 3 ? "eager" : "lazy") + '" decoding="async"') +
+          (p.caption ? "<figcaption>" + esc(p.caption) + "</figcaption>" : "") + "</figure>";
+      }).join("") + "</div>";
+    } else {
+      var ig = ok(C.instagram) && !isPh(C.instagram);
+      gal.innerHTML = '<div class="empty"><h2>Photos coming soon</h2>' +
+        (ig ? '<p class="muted">Until then, our latest bakes are on Instagram.</p><a class="btn" target="_blank" rel="noopener" href="https://instagram.com/' + esc(igHandle()) + '">See our Instagram</a>'
+            : hasWa() ? '<p class="muted">Ask us for photos of recent cakes.</p><a class="btn" target="_blank" rel="noopener" href="' + esc(waLink("Hi " + NAME + "! Could you share some cake photos?")) + '">Ask on WhatsApp</a>' : "") +
+        "</div>";
+    }
   }
 
   /* ---------- Contact map ---------- */
   var map = $("#map");
   if (map) {
-    map.innerHTML = C.mapEmbed
-      ? '<iframe src="' + esc(C.mapEmbed) + '" loading="lazy" referrerpolicy="no-referrer-when-downgrade" title="Map to Dory\'s Bakehouse"></iframe>'
-      : '<div><p><strong>Map goes here.</strong></p><p class="muted">Add the Google Maps embed link in content.js (contact → mapEmbed).</p></div>';
+    var embed = String(C.mapEmbed || "");
+    if (/^https:\/\/www\.google\.com\/maps\/embed/.test(embed)) {
+      map.innerHTML = '<iframe src="' + esc(embed) + '" loading="lazy" referrerpolicy="no-referrer-when-downgrade" title="Map to ' + esc(NAME) + '"></iframe>';
+    } else if (ok(C.mapLink) && !isPh(C.mapLink)) {
+      map.classList.add("map-card");
+      map.innerHTML = '<div><h2>Find us</h2>' + (ok(C.address) ? "<p>" + t(C.address).replace(/\n/g, "<br>") + "</p>" : "") +
+        '<a class="btn" href="' + esc(C.mapLink) + '" target="_blank" rel="noopener">Open in Google Maps</a></div>';
+    } else {
+      hide(map); var cg = map.closest(".contact-grid"); if (cg) cg.classList.add("solo");
+    }
   }
 
   /* ---------- Cake order form → WhatsApp ---------- */
   var K = D.cakes || {};
-  set("[data-leadtime]", t(K.leadTime));
-  set("[data-startprice]", t(K.startingPrice));
-  set("#cake-notes", (K.notes || []).map(function (n) { return "<li>" + t(n) + "</li>"; }).join(""));
+  put("[data-leadtime]", K.leadTime);
+  put("[data-startprice]", K.startingPrice, t(price(K.startingPrice)));
+  var cakeNotes = (K.notes || []).filter(ok);
+  var notesEl = $("#cake-notes");
+  if (notesEl) {
+    if (cakeNotes.length) notesEl.innerHTML = cakeNotes.map(function (n) { return "<li>" + t(n) + "</li>"; }).join("");
+    else hide(notesEl);
+  }
+  // "Good to know" heading goes when everything under it is hidden
+  var gtk = $all("h3").filter(function (h) { return /good to know/i.test(h.textContent); })[0];
+  if (gtk) {
+    var anyFact = $all(".facts li").some(function (li) { return !li.closest("[hidden]"); });
+    if (!anyFact) hide(gtk);
+  }
+
+  function clean(list) { return (list || []).filter(ok).map(function (v) { return PREVIEW ? String(v).replace(/[\[\]]/g, "") : String(v); }); }
   function chips(name, list, type) {
-    return list.map(function (v, i) {
-      var clean = String(v).replace(/[\[\]]/g, "");
-      return '<label><input type="' + type + '" name="' + name + '" value="' + esc(clean) + '"' + (i === 0 && type === "radio" ? "" : "") + "><span>" + esc(clean) + "</span></label>";
+    return list.map(function (v) {
+      return '<label><input type="' + type + '" name="' + name + '" value="' + esc(v) + '"><span>' + esc(v) + "</span></label>";
     }).join("");
   }
-  set("#occasion-chips", chips("occasion", K.occasions || [], "radio"));
-  set("#size-chips", chips("size", K.sizes || [], "radio"));
+  var occasions = clean(K.occasions), sizes = clean(K.sizes), flavours = clean(K.flavours);
+  var oc = $("#occasion-chips"); if (oc) oc.innerHTML = chips("occasion", occasions, "radio");
+  var sc = $("#size-chips"); if (sc) sc.innerHTML = chips("size", sizes, "radio");
   var fl = $("#flavour");
-  if (fl) fl.innerHTML = '<option value="">Choose a flavour</option>' + (K.flavours || []).map(function (f) {
-    var c = String(f).replace(/[\[\]]/g, ""); return '<option>' + esc(c) + "</option>";
-  }).join("");
+  if (fl) {
+    if (!flavours.some(function (f) { return /something else|other|custom/i.test(f); })) flavours.push("Something else (tell us)");
+    fl.innerHTML = '<option value="">Choose a flavour</option>' + flavours.map(function (f) { return "<option>" + esc(f) + "</option>"; }).join("");
+  }
 
   var form = $("#cake-form");
   if (form) {
     var d = form.querySelector("#date");
     if (d) { var min = new Date(); min.setDate(min.getDate() + 2); d.min = min.toISOString().slice(0, 10); }
+    if (!hasWa()) {
+      var submit = form.querySelector('button[type="submit"]');
+      if (submit) submit.disabled = true;
+      form.querySelector(".form-error").textContent = "Online cake orders are opening soon." + (ok(C.phone) && !isPh(C.phone) ? " Call us on " + C.phone + " to order." : "");
+    }
     form.addEventListener("submit", function (e) {
       e.preventDefault();
       var f = new FormData(form), err = form.querySelector(".form-error");
@@ -154,11 +278,11 @@
       for (var i = 0; i < need.length; i++) {
         if (!String(f.get(need[i][0]) || "").trim()) { err.textContent = "Add " + need[i][1] + " to send the order."; return; }
       }
-      if (!waNumber() || isPh(C.whatsapp)) { err.textContent = "Orders can't be sent yet: the bakery's WhatsApp number isn't set up."; return; }
+      if (!hasWa()) { err.textContent = "Online cake orders are opening soon."; return; }
       err.textContent = "";
       var dt = new Date(f.get("date") + "T00:00");
       var lines = [
-        "Hi Dory's! I'd like to order a custom cake.",
+        "Hi " + NAME + "! I'd like to order a custom cake.",
         "",
         "Name: " + f.get("name"),
         "Phone: " + f.get("phone"),

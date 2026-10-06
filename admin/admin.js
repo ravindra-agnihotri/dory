@@ -9,7 +9,7 @@
   var ROW = function () { return { type: "row", fields: [].slice.call(arguments) }; };
 
   var SECTIONS = [
-    { id: "basics", title: "Basics & contact", desc: "Name, contact details and opening hours. These appear on every page.",
+    { id: "basics", title: "Basics & contact", desc: "Name, contact details and opening hours. These appear on every page. Anything still in [square brackets] is hidden from visitors until you replace it.",
       fields: [
         ROW(T("name", "Bakery name"), T("tagline", "Tagline", "Shown in the footer.")),
         { key: "contact", type: "group", label: "Contact", fields: [
@@ -30,7 +30,7 @@
         { key: "show", type: "bool", label: "Show the special on the home page" },
         T("title", "Name of the special"),
         TA("description", "Description", "One or two lines."),
-        ROW(T("price", "Price", "e.g. ₹180"), T("validTill", "Available until", "e.g. Sunday")),
+        ROW(T("price", "Price", "Just the number, e.g. 180 (shown as ₹180)"), T("validTill", "Available until", "e.g. Sunday")),
         IMG("image", "Photo", "Optional.")
       ]}] },
 
@@ -42,7 +42,7 @@
           { key: "items", type: "list", label: "Items", itemTitle: "name", addLabel: "Add an item", nested: true,
             newItem: function () { return { name: "", desc: "", price: "", tags: [] }; },
             fields: [
-              ROW(T("name", "Item name"), T("price", "Price", "e.g. ₹120")),
+              ROW(T("name", "Item name"), T("price", "Price", "Just the number, e.g. 120 (shown as ₹120). Or text like “from 450”.")),
               T("desc", "Short description"),
               { key: "tags", type: "tags", label: "Tags", help: "Comma separated. Styled tags: eggless, vegan, bestseller, new" }
             ] }

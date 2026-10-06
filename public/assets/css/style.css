@@ -16,6 +16,7 @@
 }
 
 * { box-sizing: border-box; }
+[hidden] { display: none !important; }
 html { scroll-behavior: smooth; }
 body {
   margin: 0;
@@ -227,3 +228,16 @@ fieldset { border: 0; padding: 0; margin: 0; }
 @media (max-width: 480px) { .foot-grid { grid-template-columns: 1fr; } }
 @media (max-width: 380px) { .brand-name { display: none; } .brand-logo { width: 52px; height: 52px; } }
 @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+
+/* ---------- Layout when optional parts are hidden ---------- */
+.hero-grid.solo, .about-grid.solo, .contact-grid.solo { grid-template-columns: 1fr; }
+.hero-grid.solo h1 { max-width: 16ch; }
+.map.map-card { text-align: left; place-items: center start; padding: 36px; background: var(--butter-pale); }
+.map.map-card h2 { margin-bottom: 8px; }
+.highlight .img span { font-family: var(--display); font-size: 4rem; color: #C9A24A; }
+.gallery figure img { aspect-ratio: auto; background: var(--butter-pale); }
+
+/* ---------- Preview mode (?preview=1) ---------- */
+.preview-bar { position: fixed; left: 12px; right: 12px; bottom: 12px; z-index: 70; background: var(--ink); color: #fff;
+  padding: 12px 16px; border-radius: 12px; font-size: .92rem; box-shadow: 0 10px 30px rgba(0,0,0,.3); max-width: 760px; margin: 0 auto; }
+.preview-bar a { color: var(--butter); margin-left: 6px; }
