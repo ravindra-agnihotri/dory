@@ -40,11 +40,12 @@
         fields: [
           ROW(T("section", "Section name"), T("note", "Note", "Optional, e.g. Out of the oven by 9 am")),
           { key: "items", type: "list", label: "Items", itemTitle: "name", addLabel: "Add an item", nested: true,
-            newItem: function () { return { name: "", desc: "", price: "", tags: [] }; },
+            newItem: function () { return { name: "", desc: "", price: "", tags: [], image: "" }; },
             fields: [
               ROW(T("name", "Item name"), T("price", "Price", "Just the number, e.g. 120 (shown as ₹120). Or text like “from 450”.")),
               T("desc", "Short description"),
-              { key: "tags", type: "tags", label: "Tags", help: "Comma separated. Styled tags: eggless, vegan, bestseller, new" }
+              { key: "tags", type: "tags", label: "Tags", help: "Comma separated. Styled tags: eggless, vegan, bestseller, new" },
+              IMG("image", "Photo", "Optional. Shown as a small round photo next to the item.")
             ] }
         ] }] },
 

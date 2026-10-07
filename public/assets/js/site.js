@@ -166,7 +166,9 @@
           (ok(s.note) ? '<span class="muted">' + t(s.note) + "</span>" : "") + '</header><ul class="menu-list">' +
           s.items.map(function (i) {
             var tags = (i.tags || []).map(function (g) { return '<span class="tag ' + esc(slug(g)) + '">' + esc(g) + "</span>"; }).join("");
-            return '<li class="menu-item"><span class="name">' + t(i.name) + tags + "</span>" +
+            var pic = i.image ? '<span class="thumb">' + img(i.image, i.name, [96, 192], "96px", ' loading="lazy" decoding="async"') + "</span>" : "";
+            return '<li class="menu-item' + (pic ? " has-thumb" : "") + '">' + pic +
+              '<span class="name">' + t(i.name) + tags + "</span>" +
               '<span class="price">' + (ok(i.price) ? t(price(i.price)) : "") + "</span>" +
               (ok(i.desc) ? '<p class="desc">' + t(i.desc) + "</p>" : "") + "</li>";
           }).join("") + "</ul></section>";
