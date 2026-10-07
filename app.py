@@ -847,6 +847,11 @@ def render_page(name):
     else:
         extra.append(f'<link rel="canonical" href="{SITE_URL}{path}">')
     extra.append('<meta property="og:site_name" content="' + str(escape(nm)) + '">')
+    # Search Console / Bing Webmaster "HTML tag" verification: paste just the code into these settings
+    for env, meta in (("GOOGLE_SITE_VERIFICATION", "google-site-verification"), ("BING_SITE_VERIFICATION", "msvalidate.01")):
+        code = re.sub(r'.*content="([^"]+)".*', r"\1", os.environ.get(env, "").strip())  # accepts the whole tag too
+        if code and name == "index.html":
+            extra.append(f'<meta name="{meta}" content="{escape(code)}">')
     extra.append('<meta property="og:locale" content="en_IN">')
     if name in ("index.html", "contact.html", "about.html"):
         extra.append(_ld(_business_jsonld(d)))
@@ -865,7 +870,9 @@ def render_page(name):
 def redirect_to_main_domain():
     """Visits to the Render address go to the real domain, so Google sees one site, not two."""
     host = (request.host or "").split(":")[0].lower()
-    if (REDIRECT_RENDER_HOST and host.endswith(".onrender.com") and host != SITE_HOST
+    # dorysbakes.com (no www) and the onrender.com address both 301 to https://www.dorysbakes.com
+    bare = SITE_HOST[4:] if SITE_HOST.startswith("www.") else None
+    if (REDIRECT_RENDER_HOST and (host.endswith(".onrender.com") or (bare and host == bare)) and host != SITE_HOST
             and request.method in ("GET", "HEAD") and not request.path.startswith(("/api/", "/healthz"))):
         qs = request.query_string.decode()
         return redirect(SITE_URL + request.path + ("?" + qs if qs else ""), code=301)
