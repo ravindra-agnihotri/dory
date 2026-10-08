@@ -53,6 +53,10 @@
       '" sizes="' + sizes + '" alt="' + esc(alt) + '"' + (extra || "") + ">";
   }
 
+  function track(name, params) {
+    try { if (typeof window.gtag === "function") window.gtag("event", name, Object.assign({ page: location.pathname }, params || {})); } catch (e) {}
+  }
+
   function waNumber() { return String(C.whatsapp || "").replace(/\D/g, ""); }
   function hasWa() { return waNumber().length >= 10 && !isPh(C.whatsapp); }
   function waLink(msg) { return "https://wa.me/" + waNumber() + (msg ? "?text=" + encodeURIComponent(msg) : ""); }
@@ -297,7 +301,92 @@
       ];
       if (String(f.get("message") || "").trim()) lines.push("Message on cake: " + f.get("message"));
       if (String(f.get("notes") || "").trim()) lines.push("Design notes: " + f.get("notes"));
+      track("whatsapp_order", { form: "custom_cake", occasion: String(f.get("occasion") || ""), size: String(f.get("size") || "") });
       window.open(waLink(lines.join("\n")), "_blank", "noopener");
     });
   }
+  /* ---------- Gifting (gifting.html + home banner) ---------- */
+  var G = D.gifting || {};
+  var boxes = (G.boxes || []).filter(function (b) { return ok(b.name); });
+  var giftOn = !!G.show && ok(G.title) && boxes.length > 0;
+  $all("[data-gift-link]").forEach(function (a) {
+    if (!giftOn && !PREVIEW && a.getAttribute("aria-current") !== "page") hide(a);
+  });
+  var band = $("#gift-band");
+  if (band && giftOn) {
+    if (ok(G.kicker)) $("#gift-band-kicker").innerHTML = t(G.kicker); else hide($("#gift-band-kicker"));
+    $("#gift-band-title").innerHTML = t(G.title);
+    var bt = ok(G.deadline) ? G.deadline : G.intro;
+    if (ok(bt)) $("#gift-band-text").innerHTML = t(bt); else hide($("#gift-band-text"));
+    band.hidden = false; band.removeAttribute("aria-hidden");
+  }
+  var giftEl = $("#gift-boxes");
+  if (giftEl) {
+    var showBoxes = (giftOn || PREVIEW) && boxes.length > 0;
+    if (showBoxes) {
+      if (ok(G.title)) $("#gift-title").innerHTML = t(G.title);
+      if (ok(G.intro)) $("#gift-intro").innerHTML = t(G.intro);
+      if (ok(G.kicker)) { $("#gift-kicker").innerHTML = t(G.kicker); $("#gift-kicker").hidden = false; }
+      if (ok(G.deadline)) { $("#gift-deadline").innerHTML = t(G.deadline); $("#gift-deadline").hidden = false; }
+      if (PREVIEW && !G.show) {
+        var note = document.createElement("p"); note.className = "gift-deadline";
+        note.innerHTML = "<span class=\"ph\">Gifting is switched off. Visitors see only the bulk-order box below. Turn on “Show gift boxes” in the admin to publish.</span>";
+        giftEl.parentNode.insertBefore(note, giftEl);
+      }
+      var qty = '<option>1</option><option>2</option><option>3</option><option>4</option><option>5</option><option>6</option><option>8</option><option>10</option><option value="10+">10+</option>';
+      giftEl.innerHTML = boxes.map(function (b, i) {
+        var items = String(b.contents || "").split(/\n+/).filter(function (l) { return ok(l); });
+        return '<article class="gift-card">' +
+          (b.image ? '<div class="gift-img">' + img(b.image, b.name, [480, 960], "(max-width: 700px) 92vw, 360px", ' loading="lazy" decoding="async"') + "</div>" : "") +
+          '<div class="gift-body"><header><h2>' + t(b.name) + "</h2>" + (ok(b.price) ? '<span class="price">' + t(price(b.price)) + "</span>" : "") + "</header>" +
+          (items.length ? '<ul class="gift-items">' + items.map(function (l) { return "<li>" + t(l.replace(/^[-•*]\s*/, "")) + "</li>"; }).join("") + "</ul>" : "") +
+          (hasWa() ? '<div class="gift-order"><label>Boxes <select data-qty="' + i + '">' + qty + '</select></label>' +
+            '<button class="btn" type="button" data-gift="' + i + '">Order on WhatsApp</button></div>' : "") +
+          "</div></article>";
+      }).join("");
+      $all("[data-gift]").forEach(function (btn) {
+        btn.addEventListener("click", function () {
+          var b = boxes[+btn.getAttribute("data-gift")], q = $('[data-qty="' + btn.getAttribute("data-gift") + '"]').value;
+          var clean = function (v) { return String(v || "").replace(/[\[\]]/g, ""); };
+          var msg = ["Hi " + NAME + "! I'd like to order gift boxes.", "", "Box: " + clean(b.name) + (ok(b.price) ? " (" + clean(price(b.price)) + ")" : ""),
+            "Quantity: " + q, "Delivery or pickup date: ", "Area: "].join("\n");
+          track("whatsapp_order", { form: "gift_box", box: clean(b.name), quantity: q });
+          window.open(waLink(msg), "_blank", "noopener");
+        });
+      });
+    } else hide(giftEl);
+    if (ok(G.bulkText)) $("#gift-bulk-text").innerHTML = t(G.bulkText);
+    var bulkBtn = $("#gift-bulk-btn");
+    if (hasWa()) bulkBtn.href = waLink("Hi " + NAME + "! I'd like to ask about a bulk gift order.\n\nNumber of boxes: \nDate needed: \nBudget per box: ");
+    else hide(bulkBtn);
+  }
+
+  /* ---------- FAQ (Custom cakes page) ---------- */
+  var faqEl = $("#faq");
+  if (faqEl) {
+    var faq = (D.faq || []).filter(function (x) { return ok(x.q) && ok(x.a); });
+    if (!faq.length) hide(faqEl.closest("section"));
+    else faqEl.innerHTML = faq.map(function (x) {
+      return "<details><summary>" + t(x.q) + "</summary><p>" + t(x.a).replace(/\n/g, "<br>") + "</p></details>";
+    }).join("");
+  }
+
+  /* ---------- Privacy page ---------- */
+  if (typeof window.gtag === "function") $all("[data-analytics-note]").forEach(function (el) { el.hidden = false; });
+  var pc = $("[data-privacy-contact]");
+  if (pc) {
+    if (hasWa()) pc.innerHTML = ' on <a href="' + esc(waLink("Hi " + NAME + "! I have a question about my data.")) + '" target="_blank" rel="noopener">WhatsApp</a>';
+    else if (ok(C.email) && !isPh(C.email)) pc.innerHTML = ' at <a href="mailto:' + esc(C.email) + '">' + esc(C.email) + "</a>";
+  }
+
+  /* ---------- Click tracking (only when Google Analytics is switched on) ---------- */
+  document.addEventListener("click", function (e) {
+    var a = e.target.closest && e.target.closest("a[href]");
+    if (!a) return;
+    var href = a.getAttribute("href") || "";
+    var where = a.classList.contains("wa-float") ? "floating_button" : (a.closest("header, footer, section, aside") || {}).id || (a.closest("footer") ? "footer" : "page");
+    if (/^https:\/\/wa\.me\//.test(href)) track("whatsapp_click", { location: where });
+    else if (/^tel:/.test(href)) track("phone_click", { location: where });
+    else if (/instagram\.com/.test(href)) track("instagram_click", { location: where });
+  });
 })();

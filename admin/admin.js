@@ -49,6 +49,22 @@
             ] }
         ] }] },
 
+    { id: "gifting", title: "Gifting", desc: "Gift boxes on the Gifting page, plus a banner on the home page while it's switched on. Fill in the boxes, check them with Preview site → Gifting, then switch it on. Switch it off after the festival; the page then shows only the bulk-order box.",
+      fields: [{ key: "gifting", type: "group", fields: [
+        { key: "show", type: "bool", label: "Show gift boxes (and the home page banner)" },
+        ROW(T("kicker", "Small label above the title", "e.g. Diwali 2026"), T("title", "Title", "e.g. Diwali gift boxes. Also used in the Google title.")),
+        TA("intro", "Intro", "One or two lines: what's in the boxes and who they're for."),
+        T("deadline", "Order deadline", "e.g. Order by 3 November · delivery 4–7 November"),
+        { key: "boxes", type: "list", label: "Boxes", itemTitle: "name", addLabel: "Add a box",
+          newItem: function () { return { name: "", price: "", contents: "", image: "" }; },
+          fields: [
+            ROW(T("name", "Box name"), T("price", "Price per box", "Just the number, e.g. 650 (shown as ₹650)")),
+            TA("contents", "What's inside", "One item per line, e.g. 6 almond nankhatai"),
+            IMG("image", "Photo", "A real photo of the box. Landscape works best.")
+          ] },
+        TA("bulkText", "Bulk / corporate note", "Optional. Replaces the default text in the bulk-order box.")
+      ]}] },
+
     { id: "highlights", title: "Home highlights", desc: "The three signature items under “What people come back for”.",
       fields: [{ key: "highlights", type: "list", itemTitle: "title", addLabel: "Add a highlight",
         newItem: function () { return { title: "", desc: "", image: "" }; },
@@ -72,6 +88,11 @@
         { key: "occasions", type: "strings", label: "Occasions", addLabel: "Add an occasion" },
         { key: "notes", type: "strings", label: "Good to know", help: "Short policy notes shown beside the form.", addLabel: "Add a note" }
       ]}] },
+
+    { id: "faq", title: "FAQ", desc: "Questions and answers at the bottom of the Custom cakes page. A question shows only once its answer has no [brackets] left.",
+      fields: [{ key: "faq", type: "list", itemTitle: "q", addLabel: "Add a question",
+        newItem: function () { return { q: "", a: "" }; },
+        fields: [T("q", "Question"), TA("a", "Answer")] }] },
 
     { id: "gallery", title: "Gallery", desc: "Photos on the Gallery page. Drag photos in or choose them from your phone.", custom: "gallery" },
     { id: "history", title: "Previous versions", desc: "Every save keeps a copy. Restore one if something went wrong.", custom: "history" }
@@ -435,7 +456,7 @@
     if (sec.custom === "gallery") galleryEditor(ed);
     else if (sec.custom === "history") historyEditor(ed);
     else { var card = h("div", { class: "card" }); renderFields(sec.fields, data, card); ed.appendChild(card); }
-    if (sec.id === "basics" || sec.id === "menu") {
+    if (sec.id === "basics" || sec.id === "menu" || sec.id === "gifting" || sec.id === "faq") {
       ed.appendChild(h("p", { class: "help", text: "Fields highlighted in yellow still contain [placeholder] text." }));
     }
     window.scrollTo(0, 0);
@@ -450,8 +471,31 @@
       .then(function () { btn.textContent = "Save changes"; });
   }
 
+  // Sections added after the site launched: start them with suggestions. Nothing is published
+  // until it's saved, and [bracketed] answers stay hidden from visitors.
+  function addNewSections(d) {
+    if (!d.gifting) d.gifting = { show: false, kicker: "Diwali 2026", title: "Diwali gift boxes",
+      intro: "[One line: what's in the boxes and who they're for]",
+      deadline: "[Order by 3 November · delivery 4–7 November]",
+      boxes: [
+        { name: "[Box name, e.g. Festive cookie box]", price: "[000]", contents: "[One item per line]", image: "" },
+        { name: "[Box name]", price: "[000]", contents: "[One item per line]", image: "" },
+        { name: "[Box name]", price: "[000]", contents: "[One item per line]", image: "" }
+      ], bulkText: "" };
+    if (!d.faq) d.faq = [
+      { q: "How much notice do you need?", a: "[e.g. 2 days for most cakes, 3 days for tiered or photo cakes]" },
+      { q: "Can you make it eggless?", a: "Yes, most of our cakes can be made eggless. Just mention it when you order." },
+      { q: "Can you make a cake from a photo I send?", a: "Yes. Send reference photos in the WhatsApp chat and we'll confirm what's possible and the final price." },
+      { q: "Do you deliver? Which areas?", a: "[e.g. Pickup in Baner, or delivery in Baner, Pashan and Aundh for a small fee]" },
+      { q: "How do I pay and confirm my order?", a: "[e.g. A 50% advance by UPI confirms the order; the rest on pickup or delivery]" },
+      { q: "Can I change or cancel my order?", a: "[e.g. Changes up to 24 hours before; the advance isn't refundable once baking starts]" },
+      { q: "How should I store the cake?", a: "[e.g. Keep it refrigerated and take it out 30 minutes before serving; best eaten within 2 days]" }
+    ];
+    return d;
+  }
+
   function loadData() {
-    return api("GET", "/api/content").then(function (j) { data = j; setDirty(false); render(); });
+    return api("GET", "/api/content").then(function (j) { data = addNewSections(j); setDirty(false); render(); });
   }
 
   function showLogin() {

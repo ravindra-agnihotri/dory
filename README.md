@@ -1,4 +1,4 @@
-# Dory's Bakehouse: website + admin
+git # Dory's Bakehouse: website + admin
 
 The public website, plus an admin panel at `/admin` where you can edit every detail and upload photos without touching code.
 
@@ -134,3 +134,10 @@ update it on your host, and redeploy.
 
 After deploying: add the site in **Google Search Console** (search.google.com/search-console), submit
 `https://www.dorysbakes.com/sitemap.xml`, and check the business details with Google's **Rich Results Test**.
+| `GOOGLE_SITE_VERIFICATION` | (empty) | Search Console "HTML tag" code (paste the code or the whole tag) |
+| `BING_SITE_VERIFICATION` | (empty) | Bing Webmaster Tools "meta tag" code |
+| `GA_MEASUREMENT_ID` | (empty) | Google Analytics 4 ID (`G-…`). When set, every page loads Analytics and sends `whatsapp_click`, `whatsapp_order`, `phone_click` and `instagram_click` events; the Privacy page then shows its analytics paragraph. Not loaded on `?preview=1` pages. |
+
+## Gifting and FAQ
+- **Gifting** (admin → Gifting): gift boxes on `gifting.html`, a banner on the home page and a "Gifting" link in the menu, all only while **Show gift boxes** is on. Switched off, the page stays up with just the bulk-order box, so Google never finds a dead page. While it's on, the Google title becomes "<Title> in Pune | Dory's Bakehouse".
+- **FAQ** (admin → FAQ): questions at the bottom of the Custom cakes page. A question shows once its answer has no [brackets].

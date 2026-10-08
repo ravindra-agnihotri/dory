@@ -701,7 +701,11 @@ def admin_assets(name):
 SITE_URL = os.environ.get("SITE_URL", "https://www.dorysbakes.com").strip().rstrip("/")
 SITE_HOST = SITE_URL.split("://", 1)[-1].split("/", 1)[0].lower()
 REDIRECT_RENDER_HOST = os.environ.get("REDIRECT_RENDER_HOST", "1") == "1"
-PAGES = ["index.html", "menu.html", "cakes.html", "gallery.html", "about.html", "contact.html"]
+PAGES = ["index.html", "menu.html", "cakes.html", "gifting.html", "gallery.html", "about.html", "contact.html", "privacy.html"]
+# Google Analytics 4: set GA_MEASUREMENT_ID (e.g. G-ABC123XYZ) in Render's Environment to turn it on
+GA_ID = os.environ.get("GA_MEASUREMENT_ID", "").strip().upper()
+if not re.fullmatch(r"G-[A-Z0-9]{4,20}", GA_ID):
+    GA_ID = ""
 DEFAULT_NAME = "Dory's Bakehouse"
 
 
@@ -840,6 +844,12 @@ def render_page(name):
     if nm != DEFAULT_NAME:
         head = head.replace(DEFAULT_NAME, str(escape(nm)))
     head = head.replace("https://dorysbakes.com", SITE_URL)
+    g = d.get("gifting") or {}
+    if name == "gifting.html" and g.get("show") and not _ph(g.get("title")):
+        gt = " ".join(str(g["title"]).split())[:70]
+        gt = str(escape(gt if "pune" in gt.lower() else gt + " in Pune")) + " | " + str(escape(nm))
+        head = re.sub(r"<title>.*?</title>", lambda m: f"<title>{gt}</title>", head, count=1, flags=re.S)
+        head = re.sub(r'(<meta property="og:title" content=")[^"]*', lambda m: m.group(1) + gt, head, count=1)
     path = "/" if name == "index.html" else "/" + name
     extra = []
     if request.args.get("preview"):
@@ -853,7 +863,11 @@ def render_page(name):
         if code and name == "index.html":
             extra.append(f'<meta name="{meta}" content="{escape(code)}">')
     extra.append('<meta property="og:locale" content="en_IN">')
-    if name in ("index.html", "contact.html", "about.html"):
+    if GA_ID and not request.args.get("preview"):
+        extra.append(f'<script async src="https://www.googletagmanager.com/gtag/js?id={GA_ID}"></script>'
+                     "<script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments)}"
+                     f"gtag('js',new Date());gtag('config','{GA_ID}');</script>")
+    if name in ("index.html", "contact.html", "about.html", "gifting.html"):
         extra.append(_ld(_business_jsonld(d)))
     if name == "menu.html":
         m = _menu_jsonld(d)
@@ -890,7 +904,9 @@ def robots():
             "Disallow: /api/\n"
             "Disallow: /*?preview=\n"
             f"\nSitemap: {SITE_URL}/sitemap.xml\n")
-    return Response(body, mimetype="text/plain")
+    resp = Response(body, mimetype="text/plain")
+    resp.headers["X-Robots-Tag"] = "noindex"  # crawl it, but don't list it in search results
+    return resp
 
 
 @app.get("/sitemap.xml")
@@ -898,11 +914,13 @@ def sitemap():
     today = datetime.now(timezone.utc).date().isoformat()
     urls = "".join(
         f"<url><loc>{SITE_URL}{'/' if p == 'index.html' else '/' + p}</loc><lastmod>{today}</lastmod>"
-        f"<priority>{'1.0' if p == 'index.html' else '0.8'}</priority></url>"
+        f"<priority>{'1.0' if p == 'index.html' else '0.2' if p == 'privacy.html' else '0.8'}</priority></url>"
         for p in PAGES)
     xml = ('<?xml version="1.0" encoding="UTF-8"?>'
            '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">' + urls + "</urlset>")
-    return Response(xml, mimetype="application/xml")
+    resp = Response(xml, mimetype="application/xml")
+    resp.headers["X-Robots-Tag"] = "noindex"
+    return resp
 
 
 # Locally Flask serves the site; on Vercel the CDN serves public/ before requests reach Flask.
