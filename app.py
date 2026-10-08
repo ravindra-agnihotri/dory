@@ -834,10 +834,30 @@ def _page_source(name):
     return hit[1]
 
 
+_asset_ver = {}
+
+
+def _asset_versions(html):
+    """Add ?v=<file version> to the stylesheet and script, so browsers fetch the new copy right
+    after a deploy instead of keeping the old one for up to an hour."""
+    for rel in ("assets/css/style.css", "assets/js/site.js"):
+        f = SITE_DIR / rel
+        try:
+            m = f.stat().st_mtime
+        except OSError:
+            continue
+        hit = _asset_ver.get(rel)
+        if not hit or hit[0] != m:
+            hit = (m, hashlib.sha1(f.read_bytes()).hexdigest()[:10])
+            _asset_ver[rel] = hit
+        html = html.replace(f'"{rel}"', f'"{rel}?v={hit[1]}"')
+    return html
+
+
 def render_page(name):
     """Serve a page with SEO tags filled in from the current content: the bakery's name in the
     title and link previews, the canonical address, and business details for Google."""
-    html = _page_source(name)
+    html = _asset_versions(_page_source(name))
     d = _site_content()
     head, sep, body = html.partition("</head>")
     nm = d.get("name") if not _ph(d.get("name")) else DEFAULT_NAME
