@@ -53,7 +53,7 @@ def _folder_env(name, default=""):
     return os.environ.get(name, "").strip().strip("\"'").strip().strip("/") or default
 
 
-CLOUDINARY_FOLDER = _folder_env("CLOUDINARY_FOLDER", "dorys-bakehouse")
+CLOUDINARY_FOLDER = _folder_env("CLOUDINARY_FOLDER", "dory-gallery")
 # The Gallery page shows every photo in this Cloudinary folder. Set CLOUDINARY_GALLERY_FOLDER
 # to use a folder you already have (e.g. "dory-gallery"); otherwise it's "<CLOUDINARY_FOLDER>/gallery".
 GALLERY_FOLDER = _folder_env("CLOUDINARY_GALLERY_FOLDER") or f"{CLOUDINARY_FOLDER}/gallery"
