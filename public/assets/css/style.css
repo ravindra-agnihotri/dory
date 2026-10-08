@@ -228,7 +228,7 @@ fieldset { border: 0; padding: 0; margin: 0; }
   .form-card { padding: 22px; }
 }
 @media (max-width: 480px) { .foot-grid { grid-template-columns: 1fr; } }
-@media (max-width: 380px) { .brand-name { display: none; } .brand-logo { width: 52px; height: 52px; } }
+@media (max-width: 380px) { .brand { font-size: 1.25rem; } }
 @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
 
 /* ---------- Layout when optional parts are hidden ---------- */

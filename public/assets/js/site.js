@@ -118,8 +118,8 @@
 
   // An address/hours/phone column with nothing left in it disappears too
   $all(".visit .inner > div, .foot-grid > div").forEach(function (col) {
-    if (col.querySelector("img, picture")) return;  // the logo column always stays
-    var visible = Array.prototype.some.call(col.querySelectorAll("p, li, ul, a.btn"), function (n) { return !n.closest("[hidden]"); });
+    if (col.querySelector("[data-name]")) return;  // the bakery-name column always stays
+    var visible = Array.prototype.some.call(col.querySelectorAll("p, li, a.btn"), function (n) { return !n.closest("[hidden]"); });
     if (!visible) hide(col);
   });
 
