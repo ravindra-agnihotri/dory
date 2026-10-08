@@ -838,9 +838,10 @@ _asset_ver = {}
 
 
 def _asset_versions(html):
-    """Add ?v=<file version> to the stylesheet and script, so browsers fetch the new copy right
-    after a deploy instead of keeping the old one for up to an hour."""
-    for rel in ("assets/css/style.css", "assets/js/site.js"):
+    """Add ?v=<file version> to the stylesheet, script and logo/icon images, so browsers fetch the
+    new copy right after a deploy instead of reusing an old cached one."""
+    rels = ["assets/css/style.css", "assets/js/site.js"] + sorted(set(re.findall(r'"(assets/images/[\w.-]+\.(?:png|jpg|webp|svg))"', html)))
+    for rel in rels:
         f = SITE_DIR / rel
         try:
             m = f.stat().st_mtime
