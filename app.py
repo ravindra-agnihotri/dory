@@ -14,6 +14,7 @@ Run locally: put your settings in a .env file (see .env.example), then
     pip install -r requirements.txt
     python3 app.py
 """
+import encodings.idna  # noqa: F401. Loaded up front: the startup warm-up thread and the first request both need it, and loading it lazily made them wait on each other
 import hashlib
 import hmac
 import io
