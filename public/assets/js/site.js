@@ -43,9 +43,14 @@
   // Watermark for gallery photos, drawn by Cloudinary when the photo is delivered: the original stays clean
   var WM = D.watermark || {};
   var WM_ON = WM.show !== false, WM_TEXT = String(WM.text || "").trim() && !isPh(WM.text) ? String(WM.text).trim() : NAME;
+  var WM_DIAGONAL = WM.style === "diagonal";
   function wmLayer(w) {
-    var fs = Math.max(14, Math.round(w * 0.034)), pad = Math.max(10, Math.round(w * 0.025));
     var txt = encodeURIComponent(WM_TEXT.slice(0, 40)).replace(/'/g, "%27").replace(/[!()*]/g, function (c) { return "%" + c.charCodeAt(0).toString(16).toUpperCase(); });
+    if (WM_DIAGONAL) {  // large, faint, across the middle: harder to crop out, but it covers the cake
+      var big = Math.max(24, Math.round(w * 0.8 / Math.max(8, WM_TEXT.length * 0.58)));
+      return "/l_text:Georgia_" + big + "_bold:" + txt + ",co_rgb:FFFFFF,o_35,a_-30/e_shadow:30,co_rgb:000000,x_2,y_2/fl_layer_apply,g_center";
+    }
+    var fs = Math.max(14, Math.round(w * 0.034)), pad = Math.max(10, Math.round(w * 0.025));
     return "/l_text:Georgia_" + fs + "_bold:" + txt + ",co_rgb:FFFFFF,o_85/e_shadow:40,co_rgb:000000,x_1,y_1/fl_layer_apply,g_south_east,x_" + pad + ",y_" + pad;
   }
   function cld(src, w, wm) {

@@ -130,3 +130,4 @@ input:focus, textarea:focus { outline: none; border-color: var(--plum); box-shad
 @media (max-width: 700px) { .occ-row { grid-template-columns: 1fr 1fr; } }
 .review-pending .quote { margin: 0 0 6px; font-style: italic; max-width: 60ch; }
 .review-pending > div:first-child { flex: 1; min-width: 240px; }
+.field select { width: 100%; font: inherit; padding: 10px 12px; border: 1.5px solid #D9CCD2; border-radius: 10px; background: #fff; }

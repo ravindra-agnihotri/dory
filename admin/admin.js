@@ -22,6 +22,7 @@
         ]},
         { key: "watermark", type: "group", label: "Gallery watermark", fields: [
           { key: "show", type: "bool", label: "Show a watermark on gallery photos" },
+          { key: "style", type: "select", label: "Where", options: [["corner", "Small, bottom-right corner (keeps the cake clear)"], ["diagonal", "Large and faint, diagonally across the middle (harder to crop out)"]] },
           T("text", "Watermark text", "Leave empty to use the bakery name. Your original photos in Cloudinary are never changed.")
         ]},
         { key: "hours", type: "list", label: "Opening hours", itemTitle: "days", addLabel: "Add hours",
@@ -183,6 +184,13 @@
     return h("div", { class: "field" }, [h("label", { class: "toggle" }, [cb, f.label])]);
   }
 
+  function selectInput(f, obj) {
+    var id = nid(), sel = h("select", { id: id });
+    f.options.forEach(function (o) { var op = h("option", { value: o[0], text: o[1] }); if ((obj[f.key] || f.options[0][0]) === o[0]) op.selected = true; sel.appendChild(op); });
+    sel.addEventListener("change", function () { obj[f.key] = sel.value; changed(); });
+    return h("div", { class: "field" }, [h("label", { for: id }, [f.label, help(f)]), sel]);
+  }
+
   function tagsInput(f, obj) {
     var id = nid(), input = h("input", { id: id, type: "text", placeholder: "eggless, bestseller" });
     input.value = (obj[f.key] || []).join(", ");
@@ -322,6 +330,7 @@
       else if (f.type === "strings") el = stringsInput(f, obj);
       else if (f.type === "image") el = imageInput(f, obj);
       else if (f.type === "bool") el = boolInput(f, obj);
+      else if (f.type === "select") el = selectInput(f, obj);
       else if (f.type === "tags") el = tagsInput(f, obj);
       else el = textInput(f, obj);
       parent.appendChild(el);
@@ -710,7 +719,7 @@
         { name: "[Box name]", price: "[000]", contents: "[One item per line]", image: "" }
       ], bulkText: "" };
     if (!d.reviews) d.reviews = { googleLink: "", items: [] };
-    if (!d.watermark) d.watermark = { show: true, text: "" };
+    if (!d.watermark) d.watermark = { show: true, text: "", style: "corner" };
     if (!d.faq) d.faq = [
       { q: "How much notice do you need?", a: "[e.g. 2 days for most cakes, 3 days for tiered or photo cakes]" },
       { q: "Can you make it eggless?", a: "Yes, most of our cakes can be made eggless. Just mention it when you order." },
