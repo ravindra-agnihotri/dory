@@ -55,7 +55,7 @@ h1, h2, h3 { font-family: var(--display); font-weight: 400; color: var(--plum); 
 .field:last-child { margin-bottom: 0; }
 .field > label, .field > .label { display: block; font-weight: 600; margin-bottom: 6px; }
 .help { display: block; font-weight: 400; color: var(--muted); font-size: .88rem; margin-top: 2px; }
-input[type=text], input[type=password], textarea { width: 100%; font: inherit; color: var(--ink); background: #fff; border: 1.5px solid #D9CCD2; border-radius: 10px; padding: 10px 12px; }
+input[type=text], input[type=password], input[type=tel], input[type=search], textarea { width: 100%; font: inherit; color: var(--ink); background: #fff; border: 1.5px solid #D9CCD2; border-radius: 10px; padding: 10px 12px; }
 textarea { min-height: 90px; resize: vertical; }
 input:focus, textarea:focus { outline: none; border-color: var(--plum); box-shadow: 0 0 0 3px rgba(244,201,93,.55); }
 .ph-warn { border-color: #E5B94A !important; background: #FFFBEF !important; }
@@ -111,3 +111,20 @@ input:focus, textarea:focus { outline: none; border-color: var(--plum); box-shad
   .grid2 { grid-template-columns: 1fr; }
   .card { padding: 16px; }
 }
+
+/* ---------- Customer reminders ---------- */
+.crm-row { display: flex; justify-content: space-between; align-items: center; gap: 16px; padding: 14px 0; border-bottom: 1px solid #EADFD8; flex-wrap: wrap; }
+.crm-row:last-child { border-bottom: 0; }
+.crm-row.due strong { color: #3A1E2C; }
+.crm-row.due { background: linear-gradient(90deg, #FCEFC7 0, transparent 70%); padding-left: 10px; border-radius: 8px; }
+.crm-row.done { opacity: .6; }
+.crm-row .btns { display: flex; gap: 12px; align-items: center; }
+.crm-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
+.crm-head .btns { display: flex; gap: 16px; align-items: center; flex-wrap: wrap; }
+.sent-tag { color: #3E7B3E; font-weight: 600; }
+.src-tag { margin-left: 8px; font-size: .75rem; background: #E8F0E3; color: #3E5B33; padding: 2px 8px; border-radius: 999px; vertical-align: middle; }
+.badge { display: inline-block; margin-left: 8px; min-width: 20px; padding: 1px 7px; border-radius: 999px; background: #C2453D; color: #fff; font-size: .75rem; font-weight: 700; text-align: center; }
+.occ-row { display: grid; grid-template-columns: 130px 1fr 70px 130px auto; gap: 8px; align-items: center; margin-bottom: 8px; }
+.occ-row select, .occ-row input, .card input[type="search"] { font: inherit; padding: 10px 12px; border: 1px solid #EADFD8; border-radius: 10px; background: #fff; width: 100%; }
+.card input[type="search"] { margin-bottom: 6px; }
+@media (max-width: 700px) { .occ-row { grid-template-columns: 1fr 1fr; } }

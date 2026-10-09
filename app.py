@@ -26,7 +26,7 @@ import shutil
 import threading
 import time
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from functools import wraps
 from pathlib import Path
 
@@ -149,6 +149,10 @@ class DBStore:
                     ALTER TABLE site_content ENABLE ROW LEVEL SECURITY;
                     ALTER TABLE content_history ENABLE ROW LEVEL SECURITY;
                     ALTER TABLE login_failures ENABLE ROW LEVEL SECURITY;
+                    -- Customer reminders: never published, only read through the signed-in admin API
+                    CREATE TABLE IF NOT EXISTS private_data (
+                        key text PRIMARY KEY, data jsonb NOT NULL, updated_at timestamptz NOT NULL DEFAULT now());
+                    ALTER TABLE private_data ENABLE ROW LEVEL SECURITY;
                 """)
             c.commit()
             self.ready = True
@@ -186,6 +190,23 @@ class DBStore:
             cur.execute("SELECT data FROM content_history WHERE id = %s", (int(vid),))
             row = cur.fetchone()
             return row[0] if row else None
+
+    def private_get(self, key, default):
+        with self.conn() as c, c.cursor() as cur:
+            cur.execute("SELECT data FROM private_data WHERE key = %s", (key,))
+            row = cur.fetchone()
+            return row[0] if row else default
+
+    def private_update(self, key, default, fn):
+        """Read-modify-write in one transaction with a row lock, so the website's opt-in form and
+        the admin can't overwrite each other's changes."""
+        with self.conn() as c, c.cursor() as cur:
+            cur.execute("INSERT INTO private_data (key, data) VALUES (%s, %s) ON CONFLICT (key) DO NOTHING",
+                        (key, self.Jsonb(default)))
+            cur.execute("SELECT data FROM private_data WHERE key = %s FOR UPDATE", (key,))
+            data, result = fn(cur.fetchone()[0])
+            cur.execute("UPDATE private_data SET data = %s, updated_at = now() WHERE key = %s", (self.Jsonb(data), key))
+            return result
 
     # login throttling must be shared: serverless runs many copies of the app
     def failures(self, ip):
@@ -241,6 +262,26 @@ class FileStore:
         if not vid.replace("-", "").isdigit() or not f.exists():
             return None
         return json.loads(f.read_text(encoding="utf-8"))
+
+    _private_lock = threading.Lock()
+
+    def _pfile(self, key):
+        d = DATA_DIR / "private"
+        d.mkdir(parents=True, exist_ok=True)
+        return d / f"{key}.json"
+
+    def private_get(self, key, default):
+        f = self._pfile(key)
+        return json.loads(f.read_text(encoding="utf-8")) if f.exists() else default
+
+    def private_update(self, key, default, fn):
+        with self._private_lock:
+            data, result = fn(self.private_get(key, default))
+            f = self._pfile(key)
+            tmp = f.with_suffix(".tmp")
+            tmp.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+            tmp.replace(f)
+            return result
 
     def failures(self, ip):
         return self._fail.get(ip, (0, time.time()))
@@ -697,6 +738,246 @@ def admin_page():
 @app.get("/admin/<path:name>")
 def admin_assets(name):
     return send_from_directory(ADMIN_DIR, name)
+
+
+# ============================================================ customer reminders
+# Customers who agreed to a reminder before a birthday/anniversary. Stored privately (never in
+# content.js). Only day and month are kept, never the year.
+IST = timezone(timedelta(hours=5, minutes=30))
+CUSTOMERS_KEY, CRM_SETTINGS_KEY = "customers", "crm_settings"
+MAX_CUSTOMERS = 5000
+DEFAULT_TEMPLATE = ("Hi {name}! {person}'s {occasion} is coming up on {date} 🎂 "
+                    "Would you like us to bake something special again this year? "
+                    "[Add your offer here, e.g. 10% off if you order by {orderBy}]\n\n– Kasturi, Dory's Bakehouse")
+MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September",
+          "October", "November", "December"]
+
+
+def _today():
+    return datetime.now(IST).date()
+
+
+def _phone(v):
+    d = re.sub(r"\D", "", str(v or ""))
+    if len(d) == 11 and d.startswith("0"):
+        d = d[1:]
+    if len(d) == 10:
+        d = "91" + d
+    return d if 11 <= len(d) <= 15 else ""
+
+
+def _clip(v, n):
+    return " ".join(str(v or "").split())[:n]
+
+
+def _clean_occasion(o):
+    try:
+        m, d = int(o.get("month")), int(o.get("day"))
+    except (TypeError, ValueError):
+        return None
+    if not (1 <= m <= 12 and 1 <= d <= 31):
+        return None
+    if d > [31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31][m - 1]:
+        return None
+    return {"id": str(o.get("id") or uuid.uuid4().hex[:10]), "label": _clip(o.get("label"), 40) or "Birthday",
+            "person": _clip(o.get("person"), 60), "month": m, "day": d, "lastSent": _clip(o.get("lastSent"), 10),
+            "skipUntil": _clip(o.get("skipUntil"), 10)}
+
+
+def _clean_customer(c, existing=None):
+    phone = _phone(c.get("phone"))
+    if not phone:
+        return None, "Add a valid phone number (10 digits, or with country code)."
+    out = dict(existing or {})
+    out.update({
+        "id": (existing or {}).get("id") or uuid.uuid4().hex[:12],
+        "name": _clip(c.get("name"), 60),
+        "phone": phone,
+        "notes": str(c.get("notes") or "")[:500],
+        "occasions": [x for x in (_clean_occasion(o) for o in (c.get("occasions") or [])[:20]) if x],
+    })
+    out.setdefault("created", datetime.now(IST).isoformat(timespec="seconds"))
+    out.setdefault("source", "admin")
+    if c.get("consent") and not out.get("consentAt"):
+        out["consentAt"] = datetime.now(IST).isoformat(timespec="seconds")
+    if not out.get("consentAt"):
+        return None, "Tick that the customer agreed to reminders."
+    return out, None
+
+
+def _next_date(month, day, today):
+    from calendar import isleap
+    for year in (today.year, today.year + 1):
+        d = 28 if (month == 2 and day == 29 and not isleap(year)) else day
+        when = today.replace(year=year, month=month, day=d)
+        if when >= today:
+            return when
+    return None
+
+
+def _upcoming(customers, days):
+    today, out = _today(), []
+    for c in customers:
+        for o in c.get("occasions") or []:
+            when = _next_date(o["month"], o["day"], today)
+            if when is None or (when - today).days > days or (o.get("skipUntil") or "") >= when.isoformat():
+                continue  # skipUntil: this year's date was the order itself, so remind from next year
+            out.append({"customerId": c["id"], "occasionId": o["id"], "name": c.get("name", ""), "phone": c["phone"],
+                        "label": o["label"], "person": o.get("person", ""), "date": when.isoformat(),
+                        "daysAway": (when - today).days, "sent": o.get("lastSent") == when.isoformat()})
+    return sorted(out, key=lambda x: (x["daysAway"], x["name"]))
+
+
+@app.get("/api/customers")
+@admin_required
+def customers_list():
+    settings = store.private_get(CRM_SETTINGS_KEY, {})
+    customers = store.private_get(CUSTOMERS_KEY, [])
+    return jsonify(customers=customers, template=settings.get("template") or DEFAULT_TEMPLATE,
+                   upcoming=_upcoming(customers, int(request.args.get("days", 14))), today=_today().isoformat())
+
+
+@app.post("/api/customers")
+@admin_required
+def customers_create():
+    new, err = _clean_customer(request.get_json(silent=True) or {})
+    if err:
+        return jsonify(error=err), 400
+
+    def add(lst):
+        if len(lst) >= MAX_CUSTOMERS:
+            return lst, (None, "The customer list is full.")
+        if any(c["phone"] == new["phone"] for c in lst):
+            return lst, (None, "A customer with this phone number is already in the list. Edit them instead.")
+        return lst + [new], (new, None)
+    c, err = store.private_update(CUSTOMERS_KEY, [], add)
+    return (jsonify(error=err), 400) if err else jsonify(customer=c)
+
+
+@app.put("/api/customers/<cid>")
+@admin_required
+def customers_update(cid):
+    body = request.get_json(silent=True) or {}
+
+    def upd(lst):
+        for i, c in enumerate(lst):
+            if c["id"] == cid:
+                new, err = _clean_customer(body, existing=c)
+                if err:
+                    return lst, (None, err)
+                if any(o["phone"] == new["phone"] and o["id"] != cid for o in lst):
+                    return lst, (None, "Another customer already has this phone number.")
+                lst = lst[:i] + [new] + lst[i + 1:]
+                return lst, (new, None)
+        return lst, (None, "Customer not found.")
+    c, err = store.private_update(CUSTOMERS_KEY, [], upd)
+    return (jsonify(error=err), 400) if err else jsonify(customer=c)
+
+
+@app.delete("/api/customers/<cid>")
+@admin_required
+def customers_delete(cid):
+    store.private_update(CUSTOMERS_KEY, [], lambda lst: ([c for c in lst if c["id"] != cid], None))
+    return jsonify(ok=True)
+
+
+@app.post("/api/customers/<cid>/occasions/<oid>/sent")
+@admin_required
+def customers_mark_sent(cid, oid):
+    date = _clip((request.get_json(silent=True) or {}).get("date"), 10)  # "" to undo
+
+    def mark(lst):
+        for c in lst:
+            for o in c.get("occasions") or []:
+                if c["id"] == cid and o["id"] == oid:
+                    o["lastSent"] = date
+        return lst, None
+    store.private_update(CUSTOMERS_KEY, [], mark)
+    return jsonify(ok=True)
+
+
+@app.put("/api/customers/template")
+@admin_required
+def customers_template():
+    tpl = str((request.get_json(silent=True) or {}).get("template") or "")[:1500]
+
+    def put(d):
+        d = dict(d or {})
+        d["template"] = tpl
+        return d, None
+    store.private_update(CRM_SETTINGS_KEY, {}, put)
+    return jsonify(ok=True)
+
+
+@app.get("/api/customers/export.csv")
+@admin_required
+def customers_export():
+    import csv
+    buf = io.StringIO()
+    w = csv.writer(buf)
+    w.writerow(["Name", "Phone", "Occasion", "Whose", "Day", "Month", "Last reminder sent", "Agreed on", "Added via", "Notes"])
+    for c in store.private_get(CUSTOMERS_KEY, []):
+        for o in (c.get("occasions") or [{}]):
+            w.writerow([c.get("name", ""), c["phone"], o.get("label", ""), o.get("person", ""), o.get("day", ""),
+                        MONTHS[o["month"] - 1] if o.get("month") else "", o.get("lastSent", ""),
+                        c.get("consentAt", "")[:10], c.get("source", ""), c.get("notes", "")])
+    resp = Response(buf.getvalue(), mimetype="text/csv")
+    resp.headers["Content-Disposition"] = f"attachment; filename=dorys-customers-{_today().isoformat()}.csv"
+    return resp
+
+
+_remind_hits = {}
+
+
+@app.post("/api/remind")
+def remind_optin():
+    """Public: the 'Remind me next year' tick-box on the cake order form."""
+    body = request.get_json(silent=True)
+    if not isinstance(body, dict) or body.get("website"):  # honeypot field filled = bot
+        return jsonify(ok=True)
+    origin = request.headers.get("Origin", "")
+    host = origin.split("://", 1)[-1].split("/", 1)[0].split(":")[0].lower()
+    if origin and not (host in (SITE_HOST, SITE_HOST.removeprefix("www.")) or host.endswith(".onrender.com")
+                       or host in ("localhost", "127.0.0.1")):
+        return jsonify(error="Bad request."), 400
+    ip, now = client_ip(), time.time()
+    hits = [t for t in _remind_hits.get(ip, []) if now - t < 3600]
+    if len(hits) >= 5:
+        return jsonify(error="Too many requests. Try again later."), 429
+    _remind_hits[ip] = hits + [now]
+    if not body.get("consent"):
+        return jsonify(error="Consent is required."), 400
+    try:
+        when = datetime.strptime(str(body.get("date", "")), "%Y-%m-%d")
+    except ValueError:
+        return jsonify(error="Add the date."), 400
+    occ = _clean_occasion({"label": body.get("occasion"), "person": body.get("person"),
+                           "month": when.month, "day": when.day})
+    phone = _phone(body.get("phone"))
+    if not occ or not phone:
+        return jsonify(error="Add a valid phone number."), 400
+    # They're ordering for this year's date, so the first reminder is for next year's
+    this_year = _next_date(occ["month"], occ["day"], _today())
+    if this_year and (this_year - _today()).days <= 60:
+        occ["skipUntil"] = this_year.isoformat()
+
+    def add(lst):
+        for c in lst:
+            if c["phone"] == phone:
+                same = any(o["month"] == occ["month"] and o["day"] == occ["day"] and o["label"] == occ["label"]
+                           for o in c.get("occasions") or [])
+                if not same and len(c.get("occasions") or []) < 20:
+                    c.setdefault("occasions", []).append(occ)
+                c.setdefault("consentAt", datetime.now(IST).isoformat(timespec="seconds"))
+                return lst, None
+        if len(lst) >= MAX_CUSTOMERS:
+            return lst, None
+        return lst + [{"id": uuid.uuid4().hex[:12], "name": _clip(body.get("name"), 60), "phone": phone, "notes": "",
+                       "occasions": [occ], "source": "website",
+                       "created": datetime.now(IST).isoformat(timespec="seconds"),
+                       "consentAt": datetime.now(IST).isoformat(timespec="seconds")}], None
+    store.private_update(CUSTOMERS_KEY, [], add)
+    return jsonify(ok=True)
 
 
 # ============================================================== SEO

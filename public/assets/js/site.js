@@ -277,6 +277,8 @@
       if (submit) submit.disabled = true;
       form.querySelector(".form-error").textContent = "Online cake orders are opening soon." + (ok(C.phone) && !isPh(C.phone) ? " Call us on " + C.phone + " to order." : "");
     }
+    var rm = form.querySelector("#remind"), rp = form.querySelector("#remind-person");
+    if (rm && rp) rm.addEventListener("change", function () { rp.hidden = !rm.checked; if (rm.checked) rp.focus(); });
     form.addEventListener("submit", function (e) {
       e.preventDefault();
       var f = new FormData(form), err = form.querySelector(".form-error");
@@ -301,6 +303,15 @@
       ];
       if (String(f.get("message") || "").trim()) lines.push("Message on cake: " + f.get("message"));
       if (String(f.get("notes") || "").trim()) lines.push("Design notes: " + f.get("notes"));
+      if (f.get("remind")) {
+        lines.push("Remind me next year: Yes" + (String(f.get("person") || "").trim() ? " (" + f.get("person") + ")" : ""));
+        try {  // saved with consent; don't wait for it, so WhatsApp still opens straight away
+          fetch("/api/remind", { method: "POST", keepalive: true, headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ name: f.get("name"), phone: f.get("phone"), occasion: f.get("occasion"), person: f.get("person") || "",
+              date: f.get("date"), consent: true, website: f.get("website") || "" }) }).catch(function () {});
+        } catch (x) {}
+        track("reminder_optin", { occasion: String(f.get("occasion") || "") });
+      }
       track("whatsapp_order", { form: "custom_cake", occasion: String(f.get("occasion") || ""), size: String(f.get("size") || "") });
       window.open(waLink(lines.join("\n")), "_blank", "noopener");
     });

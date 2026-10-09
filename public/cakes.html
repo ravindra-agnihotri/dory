@@ -69,6 +69,12 @@
       </div></fieldset>
       <div class="field"><label for="message">Message on the cake <span class="hint">(optional)</span></label><input id="message" name="message" maxlength="60" placeholder="Happy birthday, Meera"></div>
       <div class="field"><label for="notes">Design ideas <span class="hint">(optional; send photos in the chat)</span></label><textarea id="notes" name="notes" placeholder="Colours, theme, toppers…"></textarea></div>
+      <fieldset class="field remind-field"><legend>Next year</legend>
+        <div class="chips"><label><input type="checkbox" name="remind" value="yes" id="remind"><span>Remind me before this occasion next year</span></label></div>
+        <input id="remind-person" name="person" maxlength="60" placeholder="Whose occasion? e.g. Aarav (optional)" aria-label="Whose occasion" hidden>
+        <p class="hint">We'll save your name, number and the day and month (not the year) to send you one WhatsApp reminder. Ask us any time to delete it. <a href="privacy.html">Privacy</a></p>
+        <input class="hp" name="website" tabindex="-1" autocomplete="off" aria-hidden="true">
+      </fieldset>
       <p class="form-error" role="alert"></p>
       <button class="btn" type="submit">Send order on WhatsApp</button>
       <p class="small">Your order is confirmed only after we reply.</p>

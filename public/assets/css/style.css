@@ -307,3 +307,8 @@ fieldset { border: 0; padding: 0; margin: 0; }
 .reviews-only-cta { padding: 56px 0; }
 .reviews-only-cta h2 { display: none; }
 .reviews-only-cta .reviews-cta { margin: 0; text-align: center; max-width: none; }
+
+/* ---------- Reminder opt-in on the cake form ---------- */
+.remind-field .hint { font-size: .88rem; color: var(--muted); margin: 8px 0 0; }
+.remind-field #remind-person { margin-top: 10px; }
+.hp { position: absolute; left: -9999px; width: 1px; height: 1px; opacity: 0; }

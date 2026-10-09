@@ -25,6 +25,8 @@
           fields: [ROW(T("days", "Days", "e.g. Monday – Friday"), T("time", "Time", "e.g. 8:00 am – 9:00 pm"))] }
       ] },
 
+    { id: "customers", title: "Reminders", desc: "Customers who agreed to a reminder before a birthday or anniversary. Upcoming dates show here 2 weeks ahead: tap “Send on WhatsApp”, check the message, and press send in WhatsApp. This list is private and never appears on the website.", custom: "customers" },
+
     { id: "special", title: "This week's special", desc: "The yellow card at the top of the home page. Update it every week.",
       fields: [{ key: "special", type: "group", fields: [
         { key: "show", type: "bool", label: "Show the special on the home page" },
@@ -429,6 +431,175 @@
     root.appendChild(h("div", { class: "card" }, [grid, zone]));
   }
 
+  /* ------------------------------------------------------------ customers */
+  var MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+  var crm = { upcomingCount: 0 };
+
+  function fmtDate(iso) {
+    var d = new Date(iso + "T00:00");
+    return d.toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short" });
+  }
+  function fillTemplate(tpl, u) {
+    var d = new Date(u.date + "T00:00"), by = new Date(d); by.setDate(by.getDate() - 3);
+    var dm = function (x) { return x.toLocaleDateString("en-IN", { day: "numeric", month: "long" }); };
+    var first = String(u.name || "").split(" ")[0] || "there";
+    var out = String(tpl);
+    if (!u.person) out = out.replace(/\{person\}'s/g, "Your").replace(/\{person\}/g, "you");
+    return out.replace(/\{name\}/g, first).replace(/\{person\}/g, u.person).replace(/\{occasion\}/g, String(u.label).toLowerCase())
+      .replace(/\{date\}/g, dm(d)).replace(/\{orderBy\}/g, dm(by));
+  }
+  function refreshBadge() {
+    api("GET", "/api/customers?days=10").then(function (j) {
+      crm.upcomingCount = j.upcoming.filter(function (u) { return !u.sent; }).length; renderNav();
+    }).catch(function () {});
+  }
+
+  function customersEditor(root) {
+    var holder = h("div", {}, [h("div", { class: "card" }, [h("p", { class: "muted", text: "Loading…" })])]);
+    root.appendChild(holder);
+    var state = null, query = "";
+    function load() {
+      return api("GET", "/api/customers?days=14").then(function (j) {
+        state = j; crm.upcomingCount = j.upcoming.filter(function (u) { return u.daysAway <= 10 && !u.sent; }).length;
+        renderNav(); draw();
+      }).catch(function (e) { holder.innerHTML = ""; holder.appendChild(h("p", { class: "error", text: e.message })); });
+    }
+
+    function upcomingCard() {
+      var card = h("div", { class: "card" }, [h("h3", { text: "Coming up in the next 2 weeks", style: "margin-top:0" })]);
+      if (!state.upcoming.length) { card.appendChild(h("p", { class: "muted", text: "Nothing in the next 2 weeks." })); return card; }
+      state.upcoming.forEach(function (u) {
+        var who = (u.person ? u.person + "'s " : "") + u.label.toLowerCase();
+        var when = fmtDate(u.date) + " · " + (u.daysAway === 0 ? "today" : u.daysAway === 1 ? "tomorrow" : "in " + u.daysAway + " days");
+        var sendBtn = h("button", { class: "btn", type: "button", onclick: function () {
+          var msg = fillTemplate(state.template, u);
+          if (/\[.*\]/.test(msg) && !confirm("The message still has [bracketed] text, such as the offer. Send anyway?")) return;
+          window.open("https://wa.me/" + u.phone + "?text=" + encodeURIComponent(msg), "_blank", "noopener");
+          api("POST", "/api/customers/" + u.customerId + "/occasions/" + u.occasionId + "/sent", { date: u.date })
+            .then(function () { toast("Marked as sent. Use Undo if you didn't send it."); return load(); });
+        } }, ["Send on WhatsApp"]);
+        var undo = h("button", { class: "link", type: "button", onclick: function () {
+          api("POST", "/api/customers/" + u.customerId + "/occasions/" + u.occasionId + "/sent", { date: "" }).then(load);
+        } }, ["Undo"]);
+        card.appendChild(h("div", { class: "crm-row" + (u.sent ? " done" : "") + (u.daysAway <= 10 && !u.sent ? " due" : "") }, [
+          h("div", {}, [h("strong", { text: (u.name || "No name") + " — " + who }), h("div", { class: "help", text: when + " · +" + u.phone })]),
+          u.sent ? h("div", { class: "btns" }, [h("span", { class: "sent-tag", text: "Sent ✓" }), undo]) : sendBtn
+        ]));
+      });
+      return card;
+    }
+
+    function templateCard() {
+      var ta = h("textarea", { "aria-label": "Message", rows: "5" }); ta.value = state.template;
+      ta.classList.toggle("ph-warn", isPh(ta.value));
+      ta.addEventListener("input", function () { ta.classList.toggle("ph-warn", isPh(ta.value)); });
+      return h("div", { class: "card" }, [
+        h("h3", { text: "Message", style: "margin-top:0" }),
+        h("p", { class: "help", text: "Filled in automatically: {name} customer's first name · {person} whose occasion · {occasion} birthday / anniversary · {date} the day · {orderBy} 3 days before. Replace the [bracketed] offer with yours. You can still edit each message in WhatsApp before sending." }),
+        ta,
+        h("p", { style: "margin:12px 0 0" }, [h("button", { class: "btn soft", type: "button", onclick: function () {
+          api("PUT", "/api/customers/template", { template: ta.value }).then(function () { state.template = ta.value; toast("Message saved."); })
+            .catch(function (e) { toast(e.message, true); });
+        } }, ["Save message"])])
+      ]);
+    }
+
+    function occasionRow(o, list, redraw) {
+      var label = h("select", { "aria-label": "Occasion" });
+      ["Birthday", "Anniversary", "Other"].forEach(function (v) { var op = h("option", { text: v }); if (o.label === v) op.selected = true; label.appendChild(op); });
+      if (["Birthday", "Anniversary"].indexOf(o.label) < 0 && o.label) { var op2 = h("option", { text: o.label }); op2.selected = true; label.appendChild(op2); }
+      label.addEventListener("change", function () { o.label = label.value; });
+      var person = h("input", { type: "text", placeholder: "Whose? e.g. Aarav (optional)", "aria-label": "Whose occasion" }); person.value = o.person || "";
+      person.addEventListener("input", function () { o.person = person.value; });
+      var day = h("select", { "aria-label": "Day" }), month = h("select", { "aria-label": "Month" });
+      for (var d = 1; d <= 31; d++) { var od = h("option", { value: d, text: d }); if (+o.day === d) od.selected = true; day.appendChild(od); }
+      MONTHS.forEach(function (m, i) { var om = h("option", { value: i + 1, text: m }); if (+o.month === i + 1) om.selected = true; month.appendChild(om); });
+      day.addEventListener("change", function () { o.day = +day.value; }); month.addEventListener("change", function () { o.month = +month.value; });
+      if (!o.day) o.day = 1; if (!o.month) o.month = 1;
+      return h("div", { class: "occ-row" }, [label, person, day, month,
+        h("button", { class: "link danger", type: "button", onclick: function () { list.splice(list.indexOf(o), 1); redraw(); } }, ["Remove"])]);
+    }
+
+    function customerForm(c, onDone) {
+      var draft = JSON.parse(JSON.stringify(c || { name: "", phone: "", notes: "", occasions: [{ label: "Birthday", person: "", day: 1, month: 1 }] }));
+      var box = h("div", { class: "list-item" });
+      function draw() {
+        box.innerHTML = "";
+        var name = h("input", { type: "text", "aria-label": "Name" }); name.value = draft.name || "";
+        name.addEventListener("input", function () { draft.name = name.value; });
+        var phone = h("input", { type: "tel", "aria-label": "Phone" }); phone.value = draft.phone || "";
+        phone.addEventListener("input", function () { draft.phone = phone.value; });
+        var notes = h("input", { type: "text", "aria-label": "Notes", placeholder: "e.g. likes chocolate truffle, eggless" }); notes.value = draft.notes || "";
+        notes.addEventListener("input", function () { draft.notes = notes.value; });
+        var consent = h("input", { type: "checkbox" }); consent.checked = !!draft.consentAt;
+        consent.disabled = !!draft.consentAt;
+        consent.addEventListener("change", function () { draft.consent = consent.checked; });
+        var occWrap = h("div", {});
+        draft.occasions.forEach(function (o) { occWrap.appendChild(occasionRow(o, draft.occasions, draw)); });
+        box.appendChild(h("div", { class: "grid2" }, [
+          h("div", { class: "field" }, [h("label", {}, ["Name"]), name]),
+          h("div", { class: "field" }, [h("label", {}, ["WhatsApp number", h("span", { class: "help", text: "10 digits, or with country code" })]), phone])]));
+        box.appendChild(h("div", { class: "field" }, [h("span", { class: "label" }, ["Dates", h("span", { class: "help", text: "Day and month only. The year isn't needed or kept." })]), occWrap,
+          h("button", { class: "btn soft", type: "button", onclick: function () { draft.occasions.push({ label: "Birthday", person: "", day: 1, month: 1 }); draw(); } }, ["+ Add a date"])]));
+        box.appendChild(h("div", { class: "field" }, [h("label", {}, ["Notes"]), notes]));
+        box.appendChild(h("div", { class: "field" }, [h("label", { class: "toggle" }, [consent,
+          draft.consentAt ? "Agreed to reminders on " + String(draft.consentAt).slice(0, 10) + (draft.source === "website" ? " (on the website)" : "") : "They agreed to get a reminder on WhatsApp"])]));
+        box.appendChild(h("div", { class: "btns" }, [
+          h("button", { class: "btn", type: "button", onclick: function () {
+            var req = c ? api("PUT", "/api/customers/" + c.id, draft) : api("POST", "/api/customers", draft);
+            req.then(function () { toast(c ? "Saved." : "Customer added."); onDone(true); }).catch(function (e) { toast(e.message, true); });
+          } }, [c ? "Save" : "Add customer"]),
+          h("button", { class: "link", type: "button", onclick: function () { onDone(false); } }, ["Cancel"])
+        ]));
+      }
+      draw();
+      return box;
+    }
+
+    function listCard() {
+      var card = h("div", { class: "card" });
+      var search = h("input", { type: "search", placeholder: "Search name or number", "aria-label": "Search customers" }); search.value = query;
+      var listEl = h("div", {});
+      var addSlot = h("div", {});
+      function drawList() {
+        listEl.innerHTML = "";
+        var q = query.toLowerCase().replace(/\s/g, "");
+        var rows = state.customers.filter(function (c) { return !q || (c.name || "").toLowerCase().replace(/\s/g, "").indexOf(q) >= 0 || c.phone.indexOf(q.replace(/\D/g, "") || "~") >= 0; })
+          .sort(function (a, b) { return (a.name || "").localeCompare(b.name || ""); });
+        if (!rows.length) listEl.appendChild(h("p", { class: "list-empty", text: state.customers.length ? "No match." : "No customers yet. Add one, or they'll appear here when someone ticks “Remind me next year” on the cake form." }));
+        rows.forEach(function (c) {
+          var dates = (c.occasions || []).map(function (o) { return (o.person ? o.person + "'s " : "") + o.label.toLowerCase() + " " + o.day + " " + MONTHS[o.month - 1].slice(0, 3); }).join(" · ") || "No dates";
+          var row = h("div", { class: "crm-row" }, [
+            h("div", {}, [h("strong", { text: c.name || "No name" }), c.source === "website" ? h("span", { class: "src-tag", text: "website" }) : null,
+              h("div", { class: "help", text: "+" + c.phone + " · " + dates + (c.notes ? " · " + c.notes : "") })]),
+            h("div", { class: "btns" }, [
+              h("button", { class: "link", type: "button", onclick: function () { row.replaceWith(customerForm(c, function (saved) { if (saved) load(); else drawList(); })); } }, ["Edit"]),
+              h("button", { class: "link danger", type: "button", onclick: function () {
+                if (!confirm("Delete " + (c.name || "this customer") + " and their dates? This can't be undone.")) return;
+                api("DELETE", "/api/customers/" + c.id).then(function () { toast("Deleted."); load(); }).catch(function (e) { toast(e.message, true); });
+              } }, ["Delete"])])
+          ]);
+          listEl.appendChild(row);
+        });
+      }
+      search.addEventListener("input", function () { query = search.value; drawList(); });
+      card.appendChild(h("div", { class: "crm-head" }, [h("h3", { text: "Customers (" + state.customers.length + ")", style: "margin:0" }),
+        h("div", { class: "btns" }, [
+          h("button", { class: "btn soft", type: "button", onclick: function () {
+            addSlot.innerHTML = ""; addSlot.appendChild(customerForm(null, function (saved) { addSlot.innerHTML = ""; if (saved) load(); }));
+          } }, ["+ Add customer"]),
+          h("a", { class: "link", href: "/api/customers/export.csv", text: "Download as spreadsheet (CSV)" })])]));
+      card.appendChild(addSlot);
+      card.appendChild(search);
+      card.appendChild(listEl);
+      drawList();
+      return card;
+    }
+
+    function draw() { holder.innerHTML = ""; holder.appendChild(upcomingCard()); holder.appendChild(templateCard()); holder.appendChild(listCard()); }
+    load();
+  }
+
   function historyEditor(root) {
     var card = h("div", { class: "card history" }, [h("p", { class: "muted", text: "Loading…" })]);
     root.appendChild(card);
@@ -455,7 +626,9 @@
   function renderNav() {
     var nav = $("#sidebar"); nav.innerHTML = "";
     SECTIONS.forEach(function (s) {
-      nav.appendChild(h("a", { href: "#" + s.id, "aria-current": s.id === current ? "true" : false, text: s.title }));
+      var a = h("a", { href: "#" + s.id, "aria-current": s.id === current ? "true" : false, text: s.title });
+      if (s.id === "customers" && crm.upcomingCount) a.appendChild(h("span", { class: "badge", text: String(crm.upcomingCount), title: "Reminders to send in the next 10 days" }));
+      nav.appendChild(a);
     });
     nav.appendChild(h("div", { class: "foot" }, [h("button", { class: "link", type: "button", onclick: logout }, ["Sign out"])]));
   }
@@ -467,6 +640,7 @@
     ed.appendChild(h("header", {}, [h("h1", { text: sec.title }), h("p", { text: sec.desc })]));
     if (sec.custom === "gallery") galleryEditor(ed);
     else if (sec.custom === "history") historyEditor(ed);
+    else if (sec.custom === "customers") customersEditor(ed);
     else { var card = h("div", { class: "card" }); renderFields(sec.fields, data, card); ed.appendChild(card); }
     if (sec.id === "basics" || sec.id === "menu" || sec.id === "gifting" || sec.id === "faq") {
       ed.appendChild(h("p", { class: "help", text: "Fields highlighted in yellow still contain [placeholder] text." }));
@@ -508,7 +682,7 @@
   }
 
   function loadData() {
-    return api("GET", "/api/content").then(function (j) { data = addNewSections(j); setDirty(false); render(); });
+    return api("GET", "/api/content").then(function (j) { data = addNewSections(j); setDirty(false); render(); refreshBadge(); });
   }
 
   function showLogin() {
