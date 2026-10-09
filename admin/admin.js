@@ -20,6 +20,10 @@
           T("mapLink", "Google Maps link", "Google Maps → Share → Copy link. Used for “Get directions”."),
           T("mapEmbed", "Google Maps embed link", "Google Maps → Share → Embed a map → copy only the link inside src=\"…\"")
         ]},
+        { key: "watermark", type: "group", label: "Gallery watermark", fields: [
+          { key: "show", type: "bool", label: "Show a watermark on gallery photos" },
+          T("text", "Watermark text", "Leave empty to use the bakery name. Your original photos in Cloudinary are never changed.")
+        ]},
         { key: "hours", type: "list", label: "Opening hours", itemTitle: "days", addLabel: "Add hours",
           newItem: function () { return { days: "", time: "" }; },
           fields: [ROW(T("days", "Days", "e.g. Monday – Friday"), T("time", "Time", "e.g. 8:00 am – 9:00 pm"))] }
@@ -706,6 +710,7 @@
         { name: "[Box name]", price: "[000]", contents: "[One item per line]", image: "" }
       ], bulkText: "" };
     if (!d.reviews) d.reviews = { googleLink: "", items: [] };
+    if (!d.watermark) d.watermark = { show: true, text: "" };
     if (!d.faq) d.faq = [
       { q: "How much notice do you need?", a: "[e.g. 2 days for most cakes, 3 days for tiered or photo cakes]" },
       { q: "Can you make it eggless?", a: "Yes, most of our cakes can be made eggless. Just mention it when you order." },

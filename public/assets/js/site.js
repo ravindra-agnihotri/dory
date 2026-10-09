@@ -40,16 +40,24 @@
 
   // Cloudinary photos at the size the screen needs instead of one large size for everyone
   function isCld(src) { return /^https:\/\/res\.cloudinary\.com\/[^/]+\/image\/upload\//.test(String(src || "")); }
-  function cld(src, w) {
-    if (!isCld(src)) return src;
-    return src.replace(/\/image\/upload\/(?:f_auto,q_auto(?:,c_limit,w_\d+)?\/)?/, "/image/upload/f_auto,q_auto,c_limit,w_" + w + "/");
+  // Watermark for gallery photos, drawn by Cloudinary when the photo is delivered: the original stays clean
+  var WM = D.watermark || {};
+  var WM_ON = WM.show !== false, WM_TEXT = String(WM.text || "").trim() && !isPh(WM.text) ? String(WM.text).trim() : NAME;
+  function wmLayer(w) {
+    var fs = Math.max(14, Math.round(w * 0.034)), pad = Math.max(10, Math.round(w * 0.025));
+    var txt = encodeURIComponent(WM_TEXT.slice(0, 40)).replace(/'/g, "%27").replace(/[!()*]/g, function (c) { return "%" + c.charCodeAt(0).toString(16).toUpperCase(); });
+    return "/l_text:Georgia_" + fs + "_bold:" + txt + ",co_rgb:FFFFFF,o_85/e_shadow:40,co_rgb:000000,x_1,y_1/fl_layer_apply,g_south_east,x_" + pad + ",y_" + pad;
   }
-  function img(src, alt, widths, sizes, extra) {
+  function cld(src, w, wm) {
+    if (!isCld(src)) return src;
+    return src.replace(/\/image\/upload\/(?:f_auto,q_auto(?:,c_limit,w_\d+)?\/)?/, "/image/upload/f_auto,q_auto,c_limit,w_" + w + (wm ? wmLayer(w) : "") + "/");
+  }
+  function img(src, alt, widths, sizes, extra, wm) {
     src = String(src || "");
     var local = /^https?:\/\//.test(src) ? src : "/" + src.replace(/^\//, "");
     if (!isCld(src)) return '<img src="' + esc(local) + '" alt="' + esc(alt) + '"' + (extra || "") + ">";
-    var set = widths.map(function (w) { return esc(cld(src, w)) + " " + w + "w"; }).join(", ");
-    return '<img src="' + esc(cld(src, widths[Math.min(1, widths.length - 1)])) + '" srcset="' + set +
+    var set = widths.map(function (w) { return esc(cld(src, w, wm)) + " " + w + "w"; }).join(", ");
+    return '<img src="' + esc(cld(src, widths[Math.min(1, widths.length - 1)], wm)) + '" srcset="' + set +
       '" sizes="' + sizes + '" alt="' + esc(alt) + '"' + (extra || "") + ">";
   }
 
@@ -209,7 +217,7 @@
       gal.innerHTML = '<div class="gallery">' + g.map(function (p, i) {
         var alt = p.caption || (NAME + " bake, photo " + (i + 1));
         return "<figure>" + img(p.src, alt, [400, 800, 1200], "(max-width: 640px) 92vw, (max-width: 1000px) 45vw, 360px",
-          ' loading="' + (i < 3 ? "eager" : "lazy") + '" decoding="async"') +
+          ' loading="' + (i < 3 ? "eager" : "lazy") + '" decoding="async"', WM_ON) +
           (p.caption ? "<figcaption>" + esc(p.caption) + "</figcaption>" : "") + "</figure>";
       }).join("") + "</div>";
     } else {
