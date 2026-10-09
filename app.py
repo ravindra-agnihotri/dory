@@ -935,10 +935,7 @@ def remind_optin():
     body = request.get_json(silent=True)
     if not isinstance(body, dict) or body.get("website"):  # honeypot field filled = bot
         return jsonify(ok=True)
-    origin = request.headers.get("Origin", "")
-    host = origin.split("://", 1)[-1].split("/", 1)[0].split(":")[0].lower()
-    if origin and not (host in (SITE_HOST, SITE_HOST.removeprefix("www.")) or host.endswith(".onrender.com")
-                       or host in ("localhost", "127.0.0.1")):
+    if not _same_site(request.headers.get("Origin", "")):
         return jsonify(error="Bad request."), 400
     ip, now = client_ip(), time.time()
     hits = [t for t in _remind_hits.get(ip, []) if now - t < 3600]
@@ -977,6 +974,81 @@ def remind_optin():
                        "created": datetime.now(IST).isoformat(timespec="seconds"),
                        "consentAt": datetime.now(IST).isoformat(timespec="seconds")}], None
     store.private_update(CUSTOMERS_KEY, [], add)
+    return jsonify(ok=True)
+
+
+# ============================================================ website reviews
+# Reviews customers submit on the site wait here (private) until the admin approves them.
+# Approving copies the review into the public content; nothing is published automatically.
+REVIEWS_KEY = "review_submissions"
+_review_hits = {}
+
+
+def _same_site(origin):
+    host = origin.split("://", 1)[-1].split("/", 1)[0].split(":")[0].lower()
+    return (not origin or host in (SITE_HOST, SITE_HOST.removeprefix("www.")) or host.endswith(".onrender.com")
+            or host in ("localhost", "127.0.0.1"))
+
+
+@app.post("/api/reviews")
+def review_submit():
+    body = request.get_json(silent=True)
+    if not isinstance(body, dict) or body.get("website"):  # honeypot field filled = bot
+        return jsonify(ok=True)
+    if not _same_site(request.headers.get("Origin", "")):
+        return jsonify(error="Bad request."), 400
+    ip, now = client_ip(), time.time()
+    hits = [t for t in _review_hits.get(ip, []) if now - t < 3600]
+    if len(hits) >= 3:
+        return jsonify(error="Thanks! You've already sent a few reviews. Try again later."), 429
+    name, text = _clip(body.get("name"), 40), str(body.get("quote") or "").strip()[:1200]
+    if len(text) < 10 or not name:
+        return jsonify(error="Add your first name and a few words about your order."), 400
+    if not body.get("consent"):
+        return jsonify(error="Tick the box to let us show your review."), 400
+    _review_hits[ip] = hits + [now]
+    item = {"id": uuid.uuid4().hex[:12], "name": name, "quote": text, "detail": _clip(body.get("detail"), 60),
+            "phone": _phone(body.get("phone")), "submitted": datetime.now(IST).isoformat(timespec="seconds")}
+
+    def add(lst):
+        pending = [r for r in lst if r.get("status", "pending") == "pending"]
+        if len(pending) >= 300:  # stops a flood from filling the database
+            return lst, None
+        return lst + [dict(item, status="pending")], None
+    store.private_update(REVIEWS_KEY, [], add)
+    return jsonify(ok=True)
+
+
+@app.get("/api/reviews/pending")
+@admin_required
+def reviews_pending():
+    return jsonify(items=[r for r in store.private_get(REVIEWS_KEY, []) if r.get("status", "pending") == "pending"])
+
+
+@app.post("/api/reviews/<rid>/approve")
+@admin_required
+def review_approve(rid):
+    def take(lst):
+        for r in lst:
+            if r["id"] == rid and r.get("status", "pending") == "pending":
+                return [x for x in lst if x["id"] != rid], r
+        return lst, None
+    r = store.private_update(REVIEWS_KEY, [], take)
+    if not r:
+        return jsonify(error="That review was already handled."), 404
+    data = store.load()
+    rv = data.setdefault("reviews", {"googleLink": "", "items": []})
+    rv.setdefault("items", []).insert(0, {"quote": r["quote"], "name": r["name"], "detail": r.get("detail", ""),
+                                          "source": "Website review, " + datetime.fromisoformat(r["submitted"]).strftime("%b %Y")})
+    store.save(data)
+    refresh_content_cache()
+    return jsonify(ok=True)
+
+
+@app.delete("/api/reviews/<rid>")
+@admin_required
+def review_delete(rid):
+    store.private_update(REVIEWS_KEY, [], lambda lst: ([x for x in lst if x["id"] != rid], None))
     return jsonify(ok=True)
 
 

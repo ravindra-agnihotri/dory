@@ -403,12 +403,35 @@
         return '<figure class="review"><blockquote>' + t(r.quote).replace(/\n/g, "<br>") + "</blockquote>" +
           "<figcaption><strong>" + t(r.name) + "</strong>" + (ok(r.detail) ? " · " + t(r.detail) : "") + src + "</figcaption></figure>";
       }).join("");
-    } else hide(revEl);
-    if (hasLink) { $("#review-btn").href = gLink; $("#reviews-cta").hidden = false; }
-    if (revs.length || hasLink) {
-      var rs = $("#reviews-section"); rs.hidden = false; rs.removeAttribute("aria-hidden");
-      if (!revs.length) rs.classList.add("reviews-only-cta");
+    } else {
+      hide(revEl);
+      $("#reviews-title").textContent = "Ordered from us?";
+      $("#reviews-section").classList.add("reviews-empty");
     }
+    if (hasLink) { $("#review-btn").href = gLink; $("#review-btn").hidden = false; $("#review-thanks-btn").href = gLink; }
+    var rf = $("#review-form"), wr = $("#write-review");
+    wr.addEventListener("click", function () {
+      rf.hidden = !rf.hidden; wr.setAttribute("aria-expanded", rf.hidden ? "false" : "true");
+      if (!rf.hidden) rf.querySelector("input").focus();
+    });
+    rf.addEventListener("input", function () { rf.querySelector(".form-error").textContent = ""; });
+    rf.addEventListener("submit", function (e) {
+      e.preventDefault();
+      var f = new FormData(rf), err = rf.querySelector(".form-error"), btn = rf.querySelector('button[type="submit"]');
+      if (!String(f.get("name") || "").trim()) { err.textContent = "Add your first name."; return; }
+      if (String(f.get("quote") || "").trim().length < 10) { err.textContent = "Write a few words about your order."; return; }
+      if (!f.get("consent")) { err.textContent = "Tick the box so we can show your review."; return; }
+      err.textContent = ""; btn.disabled = true; btn.textContent = "Sending…";
+      fetch("/api/reviews", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({
+        name: f.get("name"), detail: f.get("detail"), quote: f.get("quote"), phone: f.get("phone"), consent: true, website: f.get("website") || "" }) })
+        .then(function (r) { return r.json().then(function (j) { if (!r.ok) throw new Error(j.error || "Couldn't send. Try again."); }); })
+        .then(function () {
+          track("review_submit", {});
+          rf.hidden = true; wr.hidden = true; $("#review-thanks").hidden = false;
+          if (hasLink) { $("#review-thanks-google").hidden = false; $("#review-thanks-btn").hidden = false; }
+        })
+        .catch(function (x) { err.textContent = x.message; btn.disabled = false; btn.textContent = "Send review"; });
+    });
   }
 
   /* ---------- Click tracking (only when Google Analytics is switched on) ---------- */
@@ -420,6 +443,6 @@
     if (/^https:\/\/wa\.me\//.test(href)) track("whatsapp_click", { location: where });
     else if (/^tel:/.test(href)) track("phone_click", { location: where });
     else if (/instagram\.com/.test(href)) track("instagram_click", { location: where });
-    else if (a.id === "review-btn") track("review_click", { location: where });
+    else if (a.id === "review-btn" || a.id === "review-thanks-btn") track("review_click", { location: a.id });
   });
 })();

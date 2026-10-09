@@ -67,7 +67,7 @@
         TA("bulkText", "Bulk / corporate note", "Optional. Replaces the default text in the bulk-order box.")
       ]}] },
 
-    { id: "reviews", title: "Reviews", desc: "Real customer reviews shown on the home page, plus a “Review us on Google” button. Only add reviews customers actually wrote. Copy Google reviews as they are; for WhatsApp messages, ask the customer first. First names only.",
+    { id: "reviews", title: "Reviews", extra: "reviewQueue", desc: "Reviews shown on the home page. Ones customers send on the website wait under “Waiting for approval” until you approve them. Approve every genuine review, including critical ones; delete only spam, abuse or reviews that aren't about an order. You can also add reviews from Google or WhatsApp yourself (ask before using a WhatsApp message). First names only.",
       fields: [{ key: "reviews", type: "group", fields: [
         T("googleLink", "Google review link", "Google Business Profile → Ask for reviews → copy the link (starts with https://g.page/r/…). Leave empty to hide the button."),
         { key: "items", type: "list", label: "Reviews", itemTitle: "name", addLabel: "Add a review",
@@ -600,6 +600,41 @@
     load();
   }
 
+  /* ------------------------------------------------------------ review queue */
+  var pendingReviews = 0;
+  function refreshReviewBadge() {
+    api("GET", "/api/reviews/pending").then(function (j) { pendingReviews = j.items.length; renderNav(); }).catch(function () {});
+  }
+  function reviewQueue(root) {
+    var card = h("div", { class: "card" }, [h("h3", { text: "Waiting for approval", style: "margin-top:0" }), h("p", { class: "muted", text: "Loading…" })]);
+    root.insertBefore(card, root.children[1] || null);
+    function load() {
+      api("GET", "/api/reviews/pending").then(function (j) {
+        pendingReviews = j.items.length; renderNav();
+        card.innerHTML = ""; card.appendChild(h("h3", { text: "Waiting for approval (" + j.items.length + ")", style: "margin-top:0" }));
+        if (!j.items.length) { card.appendChild(h("p", { class: "muted", text: "No new reviews. Reviews customers send from the home page appear here." })); return; }
+        j.items.forEach(function (r) {
+          var when = new Date(r.submitted).toLocaleDateString("en-IN", { day: "numeric", month: "short" });
+          card.appendChild(h("div", { class: "crm-row review-pending" }, [
+            h("div", {}, [h("p", { class: "quote", text: "“" + r.quote + "”" }),
+              h("div", { class: "help", text: r.name + (r.detail ? " · " + r.detail : "") + " · sent " + when + (r.phone ? " · +" + r.phone + " (private)" : "") })]),
+            h("div", { class: "btns" }, [
+              h("button", { class: "btn", type: "button", onclick: function () {
+                if (dirty) { toast("Save your other changes first, then approve.", true); return; }
+                api("POST", "/api/reviews/" + r.id + "/approve", {}).then(function () { toast("Approved. It's on the home page now."); return loadData(); })
+                  .catch(function (e) { toast(e.message, true); });
+              } }, ["Approve"]),
+              h("button", { class: "link danger", type: "button", onclick: function () {
+                if (!confirm("Delete this review? Only delete spam, abuse or reviews that aren't about an order.")) return;
+                api("DELETE", "/api/reviews/" + r.id).then(function () { toast("Deleted."); load(); }).catch(function (e) { toast(e.message, true); });
+              } }, ["Delete"])])
+          ]));
+        });
+      }).catch(function (e) { card.innerHTML = ""; card.appendChild(h("p", { class: "error", text: e.message })); });
+    }
+    load();
+  }
+
   function historyEditor(root) {
     var card = h("div", { class: "card history" }, [h("p", { class: "muted", text: "Loading…" })]);
     root.appendChild(card);
@@ -628,6 +663,7 @@
     SECTIONS.forEach(function (s) {
       var a = h("a", { href: "#" + s.id, "aria-current": s.id === current ? "true" : false, text: s.title });
       if (s.id === "customers" && crm.upcomingCount) a.appendChild(h("span", { class: "badge", text: String(crm.upcomingCount), title: "Reminders to send in the next 10 days" }));
+      if (s.id === "reviews" && pendingReviews) a.appendChild(h("span", { class: "badge", text: String(pendingReviews), title: "New reviews waiting for approval" }));
       nav.appendChild(a);
     });
     nav.appendChild(h("div", { class: "foot" }, [h("button", { class: "link", type: "button", onclick: logout }, ["Sign out"])]));
@@ -642,6 +678,7 @@
     else if (sec.custom === "history") historyEditor(ed);
     else if (sec.custom === "customers") customersEditor(ed);
     else { var card = h("div", { class: "card" }); renderFields(sec.fields, data, card); ed.appendChild(card); }
+    if (sec.extra === "reviewQueue") reviewQueue(ed);
     if (sec.id === "basics" || sec.id === "menu" || sec.id === "gifting" || sec.id === "faq") {
       ed.appendChild(h("p", { class: "help", text: "Fields highlighted in yellow still contain [placeholder] text." }));
     }
@@ -682,7 +719,7 @@
   }
 
   function loadData() {
-    return api("GET", "/api/content").then(function (j) { data = addNewSections(j); setDirty(false); render(); refreshBadge(); });
+    return api("GET", "/api/content").then(function (j) { data = addNewSections(j); setDirty(false); render(); refreshBadge(); refreshReviewBadge(); });
   }
 
   function showLogin() {

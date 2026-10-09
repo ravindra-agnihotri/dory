@@ -52,11 +52,34 @@
     <p style="margin-top:32px"><a class="btn ghost" href="menu.html">Full menu</a></p>
   </div>
 </section>
-<section class="section reviews-section" id="reviews-section" hidden>
+<section class="section reviews-section" id="reviews-section">
   <div class="wrap">
-    <h2>What customers say</h2>
+    <h2 id="reviews-title">What customers say</h2>
     <div class="reviews" id="reviews"></div>
-    <p class="reviews-cta" id="reviews-cta" hidden><a class="btn ghost" id="review-btn" href="#" target="_blank" rel="noopener">Ordered from us? Review us on Google</a></p>
+    <div class="review-actions">
+      <button class="btn" type="button" id="write-review" aria-expanded="false" aria-controls="review-form">Write a review</button>
+      <a class="btn ghost" id="review-btn" href="#" target="_blank" rel="noopener" hidden>Review us on Google</a>
+    </div>
+    <form class="form-card review-form" id="review-form" hidden novalidate>
+      <h3>How was your order?</h3>
+      <div class="row">
+        <div class="field"><label for="rv-name">First name</label><input id="rv-name" name="name" maxlength="40" autocomplete="given-name"></div>
+        <div class="field"><label for="rv-detail">What you ordered <span class="hint">(optional)</span></label><input id="rv-detail" name="detail" maxlength="60" placeholder="Birthday cake, Baner"></div>
+      </div>
+      <div class="field"><label for="rv-quote">Your review</label><textarea id="rv-quote" name="quote" maxlength="1200" placeholder="How did it look and taste? How was ordering?"></textarea></div>
+      <div class="field"><label for="rv-phone">Phone <span class="hint">(optional, never shown; only so we can match it to your order)</span></label><input id="rv-phone" name="phone" type="tel" autocomplete="tel"></div>
+      <div class="field"><div class="chips"><label><input type="checkbox" name="consent" value="yes"><span>You can show this on the website with my first name</span></label></div></div>
+      <input class="hp" name="website" tabindex="-1" autocomplete="off" aria-hidden="true">
+      <p class="form-error" role="alert"></p>
+      <button class="btn" type="submit">Send review</button>
+      <p class="small">Reviews appear after we've checked them, usually within a day.</p>
+    </form>
+    <div class="form-card review-thanks" id="review-thanks" hidden>
+      <h3>Thank you!</h3>
+      <p>Your review will appear here once we've checked it.</p>
+      <p id="review-thanks-google" hidden>It would help us even more on Google, where people look for bakeries. It takes a minute:</p>
+      <a class="btn" id="review-thanks-btn" href="#" target="_blank" rel="noopener" hidden>Post it on Google too</a>
+    </div>
   </div>
 </section>
 <section class="visit scallop-top">

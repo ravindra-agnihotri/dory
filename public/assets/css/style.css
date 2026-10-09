@@ -303,10 +303,13 @@ fieldset { border: 0; padding: 0; margin: 0; }
 .review figcaption { color: var(--muted); font-size: .95rem; }
 .review figcaption strong { color: var(--ink); }
 .review .src { display: block; font-size: .85rem; margin-top: 2px; }
-.reviews-cta { margin-top: 28px; }
-.reviews-only-cta { padding: 56px 0; }
-.reviews-only-cta h2 { display: none; }
-.reviews-only-cta .reviews-cta { margin: 0; text-align: center; max-width: none; }
+.review-actions { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 28px; }
+.reviews-empty { padding: 56px 0; }
+.reviews-empty .review-actions { margin-top: 12px; }
+.review-form, .review-thanks { margin-top: 24px; max-width: 720px; }
+.review-form h3, .review-thanks h3 { font-size: 1.6rem; }
+.review-thanks p { margin-bottom: 14px; }
+@media (max-width: 640px) { .review-form .row { grid-template-columns: 1fr; } }
 
 /* ---------- Reminder opt-in on the cake form ---------- */
 .remind-field .hint { font-size: .88rem; color: var(--muted); margin: 8px 0 0; }
