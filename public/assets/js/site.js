@@ -216,10 +216,11 @@
     if (g.length) {
       gal.innerHTML = '<div class="gallery">' + g.map(function (p, i) {
         var alt = p.caption || (NAME + " bake, photo " + (i + 1));
-        return "<figure>" + img(p.src, alt, [400, 800, 1200], "(max-width: 640px) 92vw, (max-width: 1000px) 45vw, 360px",
+        return '<figure data-i="' + i + '" tabindex="0" role="button" aria-label="' + esc("View " + alt) + '">' + img(p.src, alt, [400, 800, 1200], "(max-width: 640px) 92vw, (max-width: 1000px) 45vw, 360px",
           ' loading="' + (i < 3 ? "eager" : "lazy") + '" decoding="async"', WM_ON) +
           (p.caption ? "<figcaption>" + esc(p.caption) + "</figcaption>" : "") + "</figure>";
       }).join("") + "</div>";
+      lightbox(g);
     } else {
       var ig = ok(C.instagram) && !isPh(C.instagram);
       gal.innerHTML = '<div class="empty"><h2>Photos coming soon</h2>' +
@@ -227,6 +228,63 @@
             : hasWa() ? '<p class="muted">Ask us for photos of recent cakes.</p><a class="btn" target="_blank" rel="noopener" href="' + esc(waLink("Hi " + NAME + "! Could you share some cake photos?")) + '">Ask on WhatsApp</a>' : "") +
         "</div>";
     }
+  }
+
+  /* ---------- Gallery: tap a photo to see it large and enquire on WhatsApp ---------- */
+  // A WhatsApp link can only carry text, so the message includes a link to the photo; WhatsApp
+  // shows it as a preview in the chat.
+  function photoLink(src) {
+    if (!isCld(src)) return location.origin + "/" + String(src).replace(/^\//, "");
+    return src.replace(/\/image\/upload\/(?:f_auto,q_auto(?:,c_limit,w_\d+)?\/)?/, "/image/upload/f_jpg,q_auto,c_limit,w_1000/");
+  }
+  function lightbox(items) {
+    var box = document.createElement("div");
+    box.className = "lightbox"; box.hidden = true;
+    box.setAttribute("role", "dialog"); box.setAttribute("aria-modal", "true"); box.setAttribute("aria-label", "Photo");
+    box.innerHTML = '<button class="lb-close" type="button" aria-label="Close">×</button>' +
+      '<button class="lb-prev" type="button" aria-label="Previous photo">‹</button>' +
+      '<figure class="lb-fig"><div class="lb-img"></div><figcaption></figcaption>' +
+      '<div class="lb-actions"><a class="btn" target="_blank" rel="noopener">Enquire about this cake</a>' +
+      '<a class="btn ghost lb-form" href="cakes.html">Use the order form</a></div></figure>' +
+      '<button class="lb-next" type="button" aria-label="Next photo">›</button>';
+    document.body.appendChild(box);
+    var cur = 0, lastFocus = null, enquire = box.querySelector(".lb-actions .btn");
+    if (!hasWa()) hide(enquire);
+    function show(i) {
+      cur = (i + items.length) % items.length;
+      var p = items[cur], alt = p.caption || (NAME + " bake, photo " + (cur + 1));
+      box.querySelector(".lb-img").innerHTML = img(p.src, alt, [800, 1200, 1800], "(max-width: 900px) 94vw, 900px", "", WM_ON);
+      box.querySelector("figcaption").textContent = p.caption || "";
+      var clean = String(p.caption || "").trim();
+      var msg = ["Hi " + NAME + "! I'd like a cake like this one from your gallery" + (clean ? ": " + clean : "") + ".",
+        photoLink(p.src), "", "Date needed: ", "Size / servings: ", "Flavour: ", "Eggless: "].join("\n");
+      enquire.href = waLink(msg);
+      enquire.onclick = function () { track("whatsapp_order", { form: "gallery_photo", photo: clean || "photo " + (cur + 1) }); };
+      box.querySelector(".lb-form").href = "cakes.html?photo=" + encodeURIComponent(clean || "Gallery photo " + (cur + 1));
+    }
+    function open(i) { lastFocus = document.activeElement; show(i); box.hidden = false; document.body.classList.add("lb-open"); box.querySelector(".lb-close").focus(); }
+    function close() { box.hidden = true; document.body.classList.remove("lb-open"); if (lastFocus) lastFocus.focus(); }
+    $all("#gallery figure[data-i]").forEach(function (f) {
+      f.addEventListener("click", function () { open(+f.getAttribute("data-i")); });
+      f.addEventListener("keydown", function (e) { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); open(+f.getAttribute("data-i")); } });
+    });
+    box.querySelector(".lb-close").addEventListener("click", close);
+    box.querySelector(".lb-prev").addEventListener("click", function () { show(cur - 1); });
+    box.querySelector(".lb-next").addEventListener("click", function () { show(cur + 1); });
+    box.addEventListener("click", function (e) { if (e.target === box) close(); });
+    document.addEventListener("keydown", function (e) {
+      if (box.hidden) return;
+      if (e.key === "Escape") close();
+      else if (e.key === "ArrowLeft") show(cur - 1);
+      else if (e.key === "ArrowRight") show(cur + 1);
+    });
+    var x0 = null;  // swipe left/right on phones
+    box.addEventListener("touchstart", function (e) { x0 = e.touches[0].clientX; }, { passive: true });
+    box.addEventListener("touchend", function (e) {
+      if (x0 === null) return; var dx = e.changedTouches[0].clientX - x0; x0 = null;
+      if (Math.abs(dx) > 50) show(cur + (dx < 0 ? 1 : -1));
+    });
+    if (items.length < 2) { hide(box.querySelector(".lb-prev")); hide(box.querySelector(".lb-next")); }
   }
 
   /* ---------- Contact map ---------- */
@@ -285,6 +343,8 @@
       if (submit) submit.disabled = true;
       form.querySelector(".form-error").textContent = "Online cake orders are opening soon." + (ok(C.phone) && !isPh(C.phone) ? " Call us on " + C.phone + " to order." : "");
     }
+    var fromPhoto = (location.search.match(/[?&]photo=([^&]*)/) || [])[1];
+    if (fromPhoto) { var nt = form.querySelector("#notes"); if (nt && !nt.value) nt.value = "Like the gallery photo: " + decodeURIComponent(fromPhoto.replace(/\+/g, " ")).slice(0, 120); }
     var rm = form.querySelector("#remind"), rp = form.querySelector("#remind-person");
     if (rm && rp) rm.addEventListener("change", function () { rp.hidden = !rm.checked; if (rm.checked) rp.focus(); });
     form.addEventListener("submit", function (e) {
