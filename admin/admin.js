@@ -102,11 +102,21 @@
     { id: "cakes", title: "Custom cakes", desc: "Options in the cake order form and the notes beside it.",
       fields: [{ key: "cakes", type: "group", fields: [
         ROW(T("leadTime", "Minimum notice", "e.g. 48 hours"), T("startingPrice", "Starting price", "e.g. ₹900 per kg")),
-        { key: "flavours", type: "strings", label: "Flavours", addLabel: "Add a flavour" },
         { key: "sizes", type: "strings", label: "Sizes", addLabel: "Add a size" },
         { key: "occasions", type: "strings", label: "Occasions", addLabel: "Add an occasion" },
         { key: "notes", type: "strings", label: "Good to know", help: "Short policy notes shown beside the form.", addLabel: "Add a note" }
       ]}] },
+
+    { id: "flavours", title: "Flavours", desc: "Flavours shown on the Custom cakes page, also used as the choices in the order form. Only list allergens a flavour actually contains, and keep it accurate: customers with allergies rely on it.",
+      fields: [{ key: "flavours", type: "list", itemTitle: "name", addLabel: "Add a flavour",
+        newItem: function () { return { name: "", desc: "", ingredients: "", tags: [], price: "", image: "" }; },
+        fields: [
+          ROW(T("name", "Flavour name"), T("price", "Price", "Optional. e.g. from 900 per kg")),
+          TA("desc", "Description", "One or two lines: what it tastes like."),
+          TA("ingredients", "Main ingredients", "e.g. Belgian dark chocolate, cream, cocoa sponge"),
+          { key: "tags", type: "tags", label: "Tags", help: "Comma separated. Use: eggless available, contains nuts, contains gluten, contains dairy, contains egg, bestseller. “contains …” tags show in a warning colour." },
+          IMG("image", "Photo", "Optional. A slice or close-up works best.")
+        ] }] },
 
     { id: "faq", title: "FAQ", desc: "Questions and answers at the bottom of the Custom cakes page. A question shows only once its answer has no [brackets] left.",
       fields: [{ key: "faq", type: "list", itemTitle: "q", addLabel: "Add a question",
@@ -720,6 +730,8 @@
       ], bulkText: "" };
     if (!d.reviews) d.reviews = { googleLink: "", items: [] };
     if (!d.watermark) d.watermark = { show: true, text: "", style: "corner" };
+    if (!d.flavours) d.flavours = ((d.cakes || {}).flavours || []).filter(function (n) { return n && !/something else|other|custom/i.test(n); })
+      .map(function (n) { return { name: n, desc: "[One or two lines: what it tastes like]", ingredients: "[Main ingredients]", tags: [], price: "", image: "" }; });
     if (!d.faq) d.faq = [
       { q: "How much notice do you need?", a: "[e.g. 2 days for most cakes, 3 days for tiered or photo cakes]" },
       { q: "Can you make it eggless?", a: "Yes, most of our cakes can be made eggless. Just mention it when you order." },

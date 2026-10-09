@@ -339,3 +339,21 @@ body.lb-open { overflow: hidden; }
   .lb-img img { max-height: calc(100vh - 260px); }
 }
 body.lb-open .wa-float { display: none; }
+
+/* ---------- Flavours ---------- */
+.flavours-section { padding-top: 0; }
+.flavours { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 24px; margin-top: 28px; }
+.flavour { border: 1px solid var(--line); border-radius: 22px; overflow: hidden; background: #FBF6F8; display: flex; flex-direction: column; }
+.flavour-img img { width: 100%; aspect-ratio: 4/3; object-fit: cover; }
+.flavour-body { padding: 22px; display: flex; flex-direction: column; flex: 1; }
+.flavour-body header { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; margin-bottom: 8px; }
+.flavour-body h3 { margin: 0; font-size: 1.4rem; }
+.flavour-body .price { font-family: var(--display); color: var(--plum); white-space: nowrap; }
+.flavour-body p { margin: 0 0 10px; }
+.flavour-body .ingredients { font-size: .95rem; color: var(--muted); }
+.flavour-body .ingredients strong { color: var(--ink); font-weight: 600; }
+.flavour-tags { margin: 0 0 14px !important; }
+.flavour-tags .tag { margin: 0 6px 6px 0; }
+.tag[class*="contains"] { background: #FBE3D9; color: #8A3B1E; }
+.flavour-body .btn { margin-top: auto; align-self: flex-start; }
+.tag[class*="eggless"] { background: #E4EFDD; color: #3F6231; }

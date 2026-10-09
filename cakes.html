@@ -27,7 +27,7 @@
 <a class="skip" href="#main">Skip to content</a>
 <header class="site-header scallop-bottom">
   <div class="wrap bar">
-    <a class="brand" href="index.html"><img class="brand-logo" src="assets/images/logo-128.png" width="56" height="56" alt=""><span class="brand-name" data-name>Dory's Bakehouse</span></a>
+    <a class="brand" href="index.html"><span class="brand-name" data-name>Dory's Bakehouse</span></a>
     <button class="menu-toggle" aria-expanded="false" aria-controls="nav">Menu</button>
     <nav class="nav" id="nav" aria-label="Main"><a href="menu.html">Menu</a><a href="gifting.html" data-gift-link>Gifting</a><a href="gallery.html">Gallery</a><a href="about.html">About</a><a href="contact.html">Contact</a><a class="btn" href="cakes.html" aria-current="page">Order a cake</a></nav>
   </div>
@@ -69,10 +69,23 @@
       </div></fieldset>
       <div class="field"><label for="message">Message on the cake <span class="hint">(optional)</span></label><input id="message" name="message" maxlength="60" placeholder="Happy birthday, Meera"></div>
       <div class="field"><label for="notes">Design ideas <span class="hint">(optional; send photos in the chat)</span></label><textarea id="notes" name="notes" placeholder="Colours, theme, toppers…"></textarea></div>
+      <fieldset class="field remind-field"><legend>Next year</legend>
+        <div class="chips"><label><input type="checkbox" name="remind" value="yes" id="remind"><span>Remind me before this occasion next year</span></label></div>
+        <input id="remind-person" name="person" maxlength="60" placeholder="Whose occasion? e.g. Aarav (optional)" aria-label="Whose occasion" hidden>
+        <p class="hint">We'll save your name, number and the day and month (not the year) to send you one WhatsApp reminder. Ask us any time to delete it. <a href="privacy.html">Privacy</a></p>
+        <input class="hp" name="website" tabindex="-1" autocomplete="off" aria-hidden="true">
+      </fieldset>
       <p class="form-error" role="alert"></p>
       <button class="btn" type="submit">Send order on WhatsApp</button>
       <p class="small">Your order is confirmed only after we reply.</p>
     </form>
+  </div>
+</section>
+<section class="section flavours-section" id="flavours-section" hidden>
+  <div class="wrap">
+    <h2>Our flavours</h2>
+    <p class="lede">Any flavour works with any design. Tell us about allergies when you order.</p>
+    <div class="flavours" id="flavours"></div>
   </div>
 </section>
 <section class="section faq-section" id="faq-section">
@@ -85,7 +98,7 @@
 <footer class="site-footer">
   <div class="wrap">
     <div class="foot-grid">
-      <div><img class="foot-logo" src="assets/images/logo-192.png" width="96" height="96" alt="Dory's Bakehouse logo" loading="lazy"><h3 data-name>Dory's Bakehouse</h3><p data-tagline></p><p data-address></p></div>
+      <div><h3 data-name>Dory's Bakehouse</h3><p data-tagline></p><p data-address></p></div>
       <div><h3>Hours</h3><ul data-hours></ul></div>
       <div><h3>Get in touch</h3><ul><li data-phone></li><li data-email></li><li data-instagram></li></ul></div>
       <div><h3>Pages</h3><ul><li><a href="index.html">Home</a></li><li><a href="menu.html">Menu</a></li><li><a href="cakes.html">Custom cakes</a></li><li><a href="gifting.html">Gifting</a></li><li><a href="gallery.html">Gallery</a></li><li><a href="about.html">About</a></li><li><a href="contact.html">Contact</a></li></ul></div>

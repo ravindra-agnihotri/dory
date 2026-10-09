@@ -330,7 +330,10 @@
       return '<label><input type="' + type + '" name="' + name + '" value="' + esc(v) + '"><span>' + esc(v) + "</span></label>";
     }).join("");
   }
-  var occasions = clean(K.occasions), sizes = clean(K.sizes), flavours = clean(K.flavours);
+  // Flavours: the admin's Flavours list (with descriptions) if it has any finished entries, else the plain names
+  var FL = (D.flavours || []).filter(function (x) { return ok(x.name); });
+  var flavourNames = FL.length ? FL.map(function (x) { return PREVIEW ? String(x.name).replace(/[\[\]]/g, "") : String(x.name); }) : null;
+  var occasions = clean(K.occasions), sizes = clean(K.sizes), flavours = flavourNames || clean(K.flavours);
   var oc = $("#occasion-chips"); if (oc) oc.innerHTML = chips("occasion", occasions, "radio");
   var sc = $("#size-chips"); if (sc) sc.innerHTML = chips("size", sizes, "radio");
   var fl = $("#flavour");
@@ -443,6 +446,30 @@
     var bulkBtn = $("#gift-bulk-btn");
     if (hasWa()) bulkBtn.href = waLink("Hi " + NAME + "! I'd like to ask about a bulk gift order.\n\nNumber of boxes: \nDate needed: \nBudget per box: ");
     else hide(bulkBtn);
+  }
+
+  /* ---------- Flavours (Custom cakes page) ---------- */
+  var flEl = $("#flavours");
+  if (flEl && FL.length) {
+    flEl.innerHTML = FL.map(function (x, i) {
+      var tags = (x.tags || []).filter(Boolean).map(function (g) { return '<span class="tag ' + esc(slug(g)) + '">' + esc(g) + "</span>"; }).join("");
+      return '<article class="flavour">' +
+        (x.image ? '<div class="flavour-img">' + img(x.image, x.name, [320, 640], "(max-width: 640px) 92vw, 320px", ' loading="lazy" decoding="async"') + "</div>" : "") +
+        '<div class="flavour-body"><header><h3>' + t(x.name) + "</h3>" + (ok(x.price) ? '<span class="price">' + t(price(x.price)) + "</span>" : "") + "</header>" +
+        (ok(x.desc) ? "<p>" + t(x.desc) + "</p>" : "") +
+        (ok(x.ingredients) ? '<p class="ingredients"><strong>Made with</strong> ' + t(x.ingredients) + "</p>" : "") +
+        (tags ? '<p class="flavour-tags">' + tags + "</p>" : "") +
+        '<button class="btn ghost" type="button" data-flavour="' + i + '">Order this flavour</button></div></article>';
+    }).join("");
+    $("#flavours-section").hidden = false;
+    $all("[data-flavour]").forEach(function (b) {
+      b.addEventListener("click", function () {
+        var name = flavourNames[+b.getAttribute("data-flavour")], sel = $("#flavour");
+        if (sel) { sel.value = name; sel.dispatchEvent(new Event("change")); }
+        var form = $("#cake-form"); if (form) { form.scrollIntoView({ behavior: "smooth", block: "start" }); }
+        track("flavour_click", { flavour: name });
+      });
+    });
   }
 
   /* ---------- FAQ (Custom cakes page) ---------- */
