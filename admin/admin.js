@@ -65,6 +65,18 @@
         TA("bulkText", "Bulk / corporate note", "Optional. Replaces the default text in the bulk-order box.")
       ]}] },
 
+    { id: "reviews", title: "Reviews", desc: "Real customer reviews shown on the home page, plus a “Review us on Google” button. Only add reviews customers actually wrote. Copy Google reviews as they are; for WhatsApp messages, ask the customer first. First names only.",
+      fields: [{ key: "reviews", type: "group", fields: [
+        T("googleLink", "Google review link", "Google Business Profile → Ask for reviews → copy the link (starts with https://g.page/r/…). Leave empty to hide the button."),
+        { key: "items", type: "list", label: "Reviews", itemTitle: "name", addLabel: "Add a review",
+          newItem: function () { return { quote: "", name: "", detail: "", source: "Google review" }; },
+          fields: [
+            TA("quote", "What they wrote", "Copy it word for word. You can shorten it, but don't change the wording."),
+            ROW(T("name", "First name", "e.g. Priya"), T("detail", "Order and area", "Optional, e.g. Birthday cake, Baner")),
+            T("source", "Where it's from", "e.g. Google review, or WhatsApp (shared with permission)")
+          ] }
+      ]}] },
+
     { id: "highlights", title: "Home highlights", desc: "The three signature items under “What people come back for”.",
       fields: [{ key: "highlights", type: "list", itemTitle: "title", addLabel: "Add a highlight",
         newItem: function () { return { title: "", desc: "", image: "" }; },
@@ -482,6 +494,7 @@
         { name: "[Box name]", price: "[000]", contents: "[One item per line]", image: "" },
         { name: "[Box name]", price: "[000]", contents: "[One item per line]", image: "" }
       ], bulkText: "" };
+    if (!d.reviews) d.reviews = { googleLink: "", items: [] };
     if (!d.faq) d.faq = [
       { q: "How much notice do you need?", a: "[e.g. 2 days for most cakes, 3 days for tiered or photo cakes]" },
       { q: "Can you make it eggless?", a: "Yes, most of our cakes can be made eggless. Just mention it when you order." },

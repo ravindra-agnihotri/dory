@@ -294,3 +294,16 @@ fieldset { border: 0; padding: 0; margin: 0; }
 .prose h2 { font-size: 1.6rem; margin-top: 1.6em; }
 .prose h2:first-child { margin-top: 0; }
 @media (max-width: 780px) { .gift-bulk { padding: 26px; } }
+
+/* ---------- Reviews ---------- */
+.reviews { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 24px; margin-top: 28px; }
+.review { margin: 0; background: #FBF6F8; border: 1px solid var(--line); border-radius: 22px; padding: 26px 26px 22px; display: flex; flex-direction: column; }
+.review blockquote { margin: 0 0 18px; font: 400 1.15rem/1.5 var(--display); color: var(--plum); flex: 1; }
+.review blockquote::before { content: "\201C"; display: block; font-size: 3rem; line-height: .6; color: var(--butter); margin-bottom: 8px; }
+.review figcaption { color: var(--muted); font-size: .95rem; }
+.review figcaption strong { color: var(--ink); }
+.review .src { display: block; font-size: .85rem; margin-top: 2px; }
+.reviews-cta { margin-top: 28px; }
+.reviews-only-cta { padding: 56px 0; }
+.reviews-only-cta h2 { display: none; }
+.reviews-only-cta .reviews-cta { margin: 0; text-align: center; max-width: none; }

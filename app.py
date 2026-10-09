@@ -266,6 +266,9 @@ def validate(data):
     embed = (data.get("contact") or {}).get("mapEmbed", "")
     if embed and not embed.startswith("https://www.google.com/maps/embed"):
         return "The map embed link must start with https://www.google.com/maps/embed"
+    glink = str((data.get("reviews") or {}).get("googleLink") or "").strip()
+    if glink and not glink.startswith("https://"):
+        return "The Google review link must start with https://"
     if len(json.dumps(data)) > 500_000:
         return "Content is too large."
     return None

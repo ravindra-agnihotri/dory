@@ -379,6 +379,27 @@
     else if (ok(C.email) && !isPh(C.email)) pc.innerHTML = ' at <a href="mailto:' + esc(C.email) + '">' + esc(C.email) + "</a>";
   }
 
+  /* ---------- Reviews (home page) ---------- */
+  var R = D.reviews || {};
+  var revEl = $("#reviews");
+  if (revEl) {
+    var revs = (R.items || []).filter(function (r) { return ok(r.quote) && ok(r.name); });
+    var gLink = String(R.googleLink || "").trim();
+    var hasLink = /^https:\/\//.test(gLink) && !isPh(gLink);
+    if (revs.length) {
+      revEl.innerHTML = revs.map(function (r) {
+        var src = ok(r.source) ? '<span class="src">' + t(r.source) + "</span>" : "";
+        return '<figure class="review"><blockquote>' + t(r.quote).replace(/\n/g, "<br>") + "</blockquote>" +
+          "<figcaption><strong>" + t(r.name) + "</strong>" + (ok(r.detail) ? " · " + t(r.detail) : "") + src + "</figcaption></figure>";
+      }).join("");
+    } else hide(revEl);
+    if (hasLink) { $("#review-btn").href = gLink; $("#reviews-cta").hidden = false; }
+    if (revs.length || hasLink) {
+      var rs = $("#reviews-section"); rs.hidden = false; rs.removeAttribute("aria-hidden");
+      if (!revs.length) rs.classList.add("reviews-only-cta");
+    }
+  }
+
   /* ---------- Click tracking (only when Google Analytics is switched on) ---------- */
   document.addEventListener("click", function (e) {
     var a = e.target.closest && e.target.closest("a[href]");
@@ -388,5 +409,6 @@
     if (/^https:\/\/wa\.me\//.test(href)) track("whatsapp_click", { location: where });
     else if (/^tel:/.test(href)) track("phone_click", { location: where });
     else if (/instagram\.com/.test(href)) track("instagram_click", { location: where });
+    else if (a.id === "review-btn") track("review_click", { location: where });
   });
 })();
