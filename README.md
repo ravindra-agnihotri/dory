@@ -4,7 +4,7 @@ The public website, plus an admin panel at `/admin` where you can edit every det
 
 ```
 app.py                 Flask backend (admin, API, and /content.js which the pages read)
-ssr.py                 Writes the finished menu, prices, hours, reviews and FAQ into the page HTML on the server
+ssr.py                 Writes the finished menu, prices, hours, reviews, FAQ, featured cakes and gallery photos into the page HTML on the server
 public/                The public website. On Vercel it's served from the CDN
 admin/                 The admin panel
 default_content.json   Starting content, used only the very first time
@@ -103,7 +103,10 @@ If you paste the live Neon URL into `.env`, local edits change the **live** webs
 ---
 
 ## Using the admin
-- **FSSAI licence number** (admin → Basics & contact): shown in the footer of every page once you replace the `[bracket]` text.
+- **FSSAI licence number** and **Areas you serve** (admin → Basics & contact): shown in the footer of every page once you replace the `[bracket]` text. Areas (e.g. `Baner, Pashan, Aundh`) are also sent to Google.
+- **Home page photo** (admin → Home page photo): a real photo of your best cake beside the home page headline. Leave it empty and the headline stands alone.
+- **Featured cakes** (admin → Featured cakes): up to 6 cards on the home page, each with photo, flavour, sizes, starting price, notice and an Enquire on WhatsApp button that opens a message naming that cake. The section stays hidden until a card has a real name.
+- **Gifting → bulk / corporate** fields: minimum order, notice, and branding or message-card options appear in the corporate box on the Gifting page.
 - **Basics & contact, This week's special, Menu, Home highlights, About, Custom cakes**: edit, then **Save changes** (Cmd/Ctrl + S). The live site updates within about a minute.
 - **Gallery**: shows everything in the Cloudinary folder `dorys-bakehouse/gallery`, newest first. Add photos in the admin or straight into that folder in Cloudinary (they appear within about 5 minutes). Captions save instantly. **Delete is permanent.**
 - **Previous versions**: every save keeps a copy (last 30). Restore one if something goes wrong.
@@ -144,13 +147,28 @@ After deploying: add the site in **Google Search Console** (search.google.com/se
 `https://www.dorysbakes.com/sitemap.xml`, and check the business details with Google's **Rich Results Test**.
 | `GOOGLE_SITE_VERIFICATION` | (empty) | Search Console "HTML tag" code (paste the code or the whole tag) |
 | `BING_SITE_VERIFICATION` | (empty) | Bing Webmaster Tools "meta tag" code |
-| `GA_MEASUREMENT_ID` | (empty) | Google Analytics 4 ID (`G-…`). When set, every page loads Analytics and sends `whatsapp_click`, `whatsapp_order`, `phone_click` and `instagram_click` events; the Privacy page then shows its analytics paragraph. Not loaded on `?preview=1` pages. |
+| `GA_MEASUREMENT_ID` | (empty) | Google Analytics 4 ID (`G-…`). When set, every page loads Analytics and sends `order_form_start`, `whatsapp_order`, `whatsapp_click`, `phone_click` and `instagram_click` events; the Privacy page then shows its analytics paragraph. Not loaded on `?preview=1` pages. |
+
+## Measuring what works
+With `GA_MEASUREMENT_ID` set, Analytics records these events (mark the ones you care about as **Key events** in GA4 → Admin → Events):
+
+| Event | Meaning |
+|---|---|
+| `order_form_start` | Someone touched the custom cake form: the top of your order funnel |
+| `whatsapp_order` | They finished the form (or used a gallery photo or gift box button) and WhatsApp opened. Has a `form` value: `custom_cake`, `gallery_photo` or `gift_box` |
+| `whatsapp_click` | Any other tap on a WhatsApp link. The `location` value says where: e.g. `featured-section`, the floating button, the footer |
+| `phone_click`, `instagram_click` | Taps on your number and Instagram link |
+
+The site can't see what happens inside WhatsApp, so **confirmed orders** and your enquiry-to-order rate need a weekly tally of your own
+(a simple sheet: enquiries received, orders confirmed, where they came from). Add the site to Google Search Console as well, to see
+which searches bring people to you.
 
 ## Why the pages show content immediately
 The pages are filled in two steps. The server (`ssr.py`) first writes the finished content into the HTML: menu with prices, hours,
-address, phone, FSSAI number, reviews, FAQ, About text and the WhatsApp and map links. Then `site.js` loads `content.js` and fills
-the page the same way, and also handles the parts that need a browser (order form, gallery, the weekly special, gifting).
-So Google, WhatsApp link previews and visitors on slow phones see the menu without waiting for scripts.
+address, phone, areas, FSSAI number, reviews, FAQ, About text, the home page photo, featured cakes, the gallery photos and the
+WhatsApp and map links. Then `site.js` loads `content.js` and fills the page the same way, and also handles the parts that need
+a browser (order form, the weekly special, gifting, the photo viewer).
+So Google (including Google Images), WhatsApp link previews and visitors on slow phones see the menu and photos without waiting for scripts.
 If you change how `site.js` renders one of those blocks, change `ssr.py` to match. This only applies where Flask serves the pages
 (Render, PythonAnywhere, local). On Vercel the CDN serves `public/` directly, so only `site.js` fills the page.
 

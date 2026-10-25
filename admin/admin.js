@@ -16,6 +16,7 @@
           ROW(T("phone", "Phone", "As customers should see it, e.g. +91 98765 43210"),
               T("whatsapp", "WhatsApp number", "Digits only with country code, e.g. 919876543210. Cake orders are sent here.")),
           ROW(T("email", "Email"), T("instagram", "Instagram handle", "Without the @")),
+          T("areas", "Areas you serve", "e.g. Baner, Pashan, Aundh. Shown in the footer and shared with Google, so people searching for cakes in those areas can find you. Leave in [brackets] to hide it."),
           T("fssai", "FSSAI licence number", "14 digits. Shown in the footer of every page; customers look for it before ordering food. Leave in [brackets] to hide it."),
           TA("address", "Address"),
           T("mapLink", "Google Maps link", "Google Maps → Share → Copy link. Used for “Get directions”."),
@@ -70,7 +71,9 @@
             TA("contents", "What's inside", "One item per line, e.g. 6 almond nankhatai"),
             IMG("image", "Photo", "A real photo of the box. Landscape works best.")
           ] },
-        TA("bulkText", "Bulk / corporate note", "Optional. Replaces the default text in the bulk-order box.")
+        TA("bulkText", "Bulk / corporate note", "Optional. Replaces the default text in the bulk-order box."),
+        ROW(T("minOrder", "Minimum bulk order", "e.g. 10 boxes"), T("bulkLead", "Notice for bulk orders", "e.g. 7 days")),
+        T("customisation", "Branding and message cards", "e.g. Custom message card or logo card, from 25 boxes. Leave empty if you don't offer it.")
       ]}] },
 
     { id: "reviews", title: "Reviews", extra: "reviewQueue", desc: "Reviews shown on the home page. Ones customers send on the website wait under “Waiting for approval” until you approve them. Approve every genuine review, including critical ones; delete only spam, abuse or reviews that aren't about an order. You can also add reviews from Google or WhatsApp yourself (ask before using a WhatsApp message). First names only.",
@@ -84,6 +87,24 @@
             T("source", "Where it's from", "e.g. Google review, or WhatsApp (shared with permission)")
           ] }
       ]}] },
+
+    { id: "hero", title: "Home page photo", desc: "A large photo of one of your best cakes, shown beside the headline on the home page. Choose one that shows your design skills, not a stock photo.",
+      fields: [{ key: "hero", type: "group", fields: [
+        IMG("image", "Photo", "Landscape (wider than tall) works best. Leave empty to show the headline on its own."),
+        T("alt", "Describe the photo", "For visitors who can't see it, and for Google. e.g. Pink unicorn birthday cake with gold stars")
+      ]}] },
+
+    { id: "featured", title: "Featured cakes", desc: "Up to 6 of your best cakes on the home page, each with an Enquire on WhatsApp button. Use real photos of your own cakes. A card only shows once its name has no [brackets] left.",
+      fields: [{ key: "featured", type: "list", itemTitle: "name", addLabel: "Add a cake",
+        newItem: function () { return { name: "", category: "", flavour: "", sizes: "", price: "", notice: "", image: "" }; },
+        fields: [
+          ROW(T("name", "Cake name", "e.g. Unicorn birthday cake"),
+              { key: "category", type: "select", label: "Category", options: [["", "No category"], ["Birthday", "Birthday"], ["Designer", "Designer"], ["Anniversary", "Anniversary"], ["Eggless", "Eggless"], ["Speciality", "Speciality"], ["Desserts & gifting", "Desserts & gifting"]] }),
+          T("flavour", "Flavour", "e.g. Chocolate truffle with ganache"),
+          ROW(T("sizes", "Sizes", "e.g. 1 kg to 3 kg"), T("price", "Starting price", "Just the number, e.g. 1800 (shown as From ₹1,800). Or text like “from 900 per kg”.")),
+          T("notice", "Advance notice", "e.g. 3 days"),
+          IMG("image", "Photo", "A real photo of this cake. Landscape works best.")
+        ] }] },
 
     { id: "highlights", title: "Home highlights", desc: "The three signature items under “What people come back for”.",
       fields: [{ key: "highlights", type: "list", itemTitle: "title", addLabel: "Add a highlight",
@@ -730,6 +751,8 @@
         { name: "[Box name]", price: "[000]", contents: "[One item per line]", image: "" }
       ], bulkText: "" };
     if (!d.reviews) d.reviews = { googleLink: "", items: [] };
+    if (!d.hero) d.hero = { image: "", alt: "" };
+    if (!d.featured) d.featured = [];
     if (!d.watermark) d.watermark = { show: true, text: "", style: "corner" };
     if (!d.flavours) d.flavours = ((d.cakes || {}).flavours || []).filter(function (n) { return n && !/something else|other|custom/i.test(n); })
       .map(function (n) { return { name: n, desc: "[One or two lines: what it tastes like]", ingredients: "[Main ingredients]", tags: [], price: "", image: "" }; });

@@ -107,6 +107,7 @@
   put("[data-email]", C.email, '<a href="mailto:' + esc(C.email) + '">' + esc(C.email) + "</a>");
   put("[data-instagram]", C.instagram, '<a href="https://instagram.com/' + esc(igHandle()) + '" target="_blank" rel="noopener">@' + esc(igHandle()) + "</a>");
   put("[data-fssai]", C.fssai, "FSSAI Lic. No. " + t(C.fssai));
+  put("[data-areas]", C.areas, "We bake for " + t(C.areas));
 
   var hours = (D.hours || []).filter(function (h) { return ok(h.days) && ok(h.time); });
   $all("[data-hours]").forEach(function (el) {
@@ -137,14 +138,19 @@
     if (!visible) hide(col);
   });
 
-  /* ---------- Home: special ---------- */
-  var sp = D.special || {}, spEl = $("#special");
-  if (spEl) {
-    if (!sp.show || !ok(sp.title)) {
-      spEl.remove();
-      var hg = $(".hero-grid"); if (hg) hg.classList.add("solo");
-    } else {
-      spEl.innerHTML =
+  /* ---------- Home: hero photo and this week's special ---------- */
+  // The server (ssr.py) already did the same: it drops what's empty and writes the photo.
+  var sp = D.special || {}, spEl = $("#special"), H = D.hero || {};
+  var hasSpecial = !!sp.show && ok(sp.title), hasPhoto = !!H.image;
+  var heroSide = $("#hero-side"), heroPhoto = $("#hero-photo");
+  if (heroSide) {
+    if (heroPhoto) {
+      if (hasPhoto) heroPhoto.innerHTML = img(H.image, String(H.alt || "").trim() || NAME + " custom cake", [480, 960], "(max-width: 900px) 92vw, 480px", ' fetchpriority="high"');
+      else heroPhoto.remove();
+    }
+    if (spEl) {
+      if (!hasSpecial) spEl.remove();
+      else spEl.innerHTML =
         (sp.image ? img(sp.image, sp.title, [480, 960], "(max-width: 900px) 92vw, 480px") : "") +
         '<div class="kicker">This week\'s special</div>' +
         "<h2>" + t(sp.title) + "</h2>" +
@@ -152,6 +158,31 @@
         ((ok(sp.price) || ok(sp.validTill)) ? '<div class="foot"><span class="price">' + (ok(sp.price) ? t(price(sp.price)) : "") + "</span>" +
           (ok(sp.validTill) ? "<span>Until " + t(sp.validTill) + "</span>" : "") + "</div>" : "");
     }
+    if (!hasSpecial && !hasPhoto) {
+      heroSide.remove();
+      var hg = $(".hero-grid"); if (hg) hg.classList.add("solo");
+    }
+  }
+
+  /* ---------- Home: featured cakes ---------- */
+  var feat = (D.featured || []).filter(function (c) { return ok(c.name); }).slice(0, 6);
+  var featEl = $("#featured"), featSec = $("#featured-section");
+  if (featEl && feat.length) {
+    featEl.innerHTML = feat.map(function (c) {
+      var p = ok(c.price) ? price(c.price) : "", facts = [];
+      if (ok(c.sizes)) facts.push("Sizes: " + t(c.sizes));
+      if (ok(c.price)) facts.push((p.charAt(0) === "₹" ? "From " : "") + t(p));
+      if (ok(c.notice)) facts.push("Notice: " + t(c.notice));
+      var msg = ["Hi " + NAME + "! I'd like a cake like this one: " + c.name, "", "Date needed: ", "Size / servings: ", "Flavour: ", "Eggless: "].join("\n");
+      return '<article class="cake-card">' +
+        (c.image ? '<div class="cake-img">' + img(c.image, c.name, [320, 640], "(max-width: 640px) 92vw, 320px", ' loading="lazy" decoding="async"') + "</div>" : "") +
+        '<div class="cake-body">' + (ok(c.category) ? '<p class="cake-cat">' + t(c.category) + "</p>" : "") +
+        "<h3>" + t(c.name) + "</h3>" + (ok(c.flavour) ? '<p class="muted">' + t(c.flavour) + "</p>" : "") +
+        (facts.length ? '<ul class="cake-meta">' + facts.map(function (x) { return "<li>" + x + "</li>"; }).join("") + "</ul>" : "") +
+        (hasWa() ? '<a class="btn ghost" target="_blank" rel="noopener" href="' + esc(waLink(msg)) + '">Enquire on WhatsApp</a>' : "") +
+        "</div></article>";
+    }).join("");
+    if (featSec) { featSec.hidden = false; featSec.removeAttribute("aria-hidden"); }
   }
 
   /* ---------- Home: highlights ---------- */
@@ -221,7 +252,7 @@
     var g = D.gallery || [];
     if (g.length) {
       gal.innerHTML = '<div class="gallery">' + g.map(function (p, i) {
-        var alt = p.caption || (NAME + " bake, photo " + (i + 1));
+        var alt = p.caption || (NAME + " cake, photo " + (i + 1));
         return '<figure data-i="' + i + '" tabindex="0" role="button" aria-label="' + esc("View " + alt) + '">' + img(p.src, alt, [400, 800, 1200], "(max-width: 640px) 92vw, (max-width: 1000px) 45vw, 360px",
           ' loading="' + (i < 3 ? "eager" : "lazy") + '" decoding="async"', WM_ON) +
           (p.caption ? "<figcaption>" + esc(p.caption) + "</figcaption>" : "") + "</figure>";
@@ -258,7 +289,7 @@
     if (!hasWa()) hide(enquire);
     function show(i) {
       cur = (i + items.length) % items.length;
-      var p = items[cur], alt = p.caption || (NAME + " bake, photo " + (cur + 1));
+      var p = items[cur], alt = p.caption || (NAME + " cake, photo " + (cur + 1));
       box.querySelector(".lb-img").innerHTML = img(p.src, alt, [800, 1200, 1800], "(max-width: 900px) 94vw, 900px", "", WM_ON);
       box.querySelector("figcaption").textContent = p.caption || "";
       var clean = String(p.caption || "").trim();
@@ -352,6 +383,8 @@
       if (submit) submit.disabled = true;
       form.querySelector(".form-error").textContent = "Online cake orders are opening soon." + (ok(C.phone) && !isPh(C.phone) ? " Call us on " + C.phone + " to order." : "");
     }
+    var started = false;  // first touch of the form: the top of the order funnel in Google Analytics
+    form.addEventListener("focusin", function () { if (!started) { started = true; track("order_form_start", {}); } });
     var fromPhoto = (location.search.match(/[?&]photo=([^&]*)/) || [])[1];
     if (fromPhoto) { var nt = form.querySelector("#notes"); if (nt && !nt.value) nt.value = "Like the gallery photo: " + decodeURIComponent(fromPhoto.replace(/\+/g, " ")).slice(0, 120); }
     var rm = form.querySelector("#remind"), rp = form.querySelector("#remind-person");
@@ -444,8 +477,14 @@
       });
     } else hide(giftEl);
     if (ok(G.bulkText)) $("#gift-bulk-text").innerHTML = t(G.bulkText);
+    var bf = [];
+    if (ok(G.minOrder)) bf.push("Minimum order: " + t(G.minOrder));
+    if (ok(G.customisation)) bf.push("Branding and message cards: " + t(G.customisation));
+    if (ok(G.bulkLead)) bf.push("Notice needed: " + t(G.bulkLead));
+    var bfEl = $("#gift-bulk-facts");
+    if (bfEl) { if (bf.length) { bfEl.innerHTML = bf.map(function (x) { return "<li>" + x + "</li>"; }).join(""); bfEl.hidden = false; } else hide(bfEl); }
     var bulkBtn = $("#gift-bulk-btn");
-    if (hasWa()) bulkBtn.href = waLink("Hi " + NAME + "! I'd like to ask about a bulk gift order.\n\nNumber of boxes: \nDate needed: \nBudget per box: ");
+    if (hasWa()) bulkBtn.href = waLink("Hi " + NAME + "! I'd like to ask about a corporate or bulk gift order.\n\nCompany or occasion: \nNumber of boxes: \nDate needed: \nBudget per box: \nLogo or message card needed? ");
     else hide(bulkBtn);
   }
 

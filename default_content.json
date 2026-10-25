@@ -7,6 +7,7 @@
     "email": "[hello@dorysbakehouse.com]",
     "instagram": "[dorysbakehouse]",
     "fssai": "[14-digit FSSAI licence number]",
+    "areas": "[Baner, Pashan]",
     "address": "[Shop no., Street, Area, City – PIN]",
     "mapEmbed": "",
     "mapLink": "[Paste your Google Maps share link]"
@@ -194,5 +195,10 @@
       "[50% advance confirms the order]"
     ]
   },
-  "gallery": []
+  "gallery": [],
+  "hero": {
+    "image": "",
+    "alt": ""
+  },
+  "featured": []
 }

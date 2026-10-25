@@ -1151,6 +1151,10 @@ def _business_jsonld(d):
         j["address"] = {"@type": "PostalAddress", "streetAddress": " ".join(str(c["address"]).split()), "addressCountry": "IN"}
     if not _ph(c.get("mapLink")):
         j["hasMap"] = c["mapLink"]
+    if not _ph(c.get("areas")):
+        areas = [x.strip() for x in str(c["areas"]).split(",") if x.strip()]
+        if areas:
+            j["areaServed"] = areas
     same = []
     if not _ph(c.get("instagram")):
         same.append("https://www.instagram.com/" + str(c["instagram"]).lstrip("@").split("instagram.com/")[-1].strip("/"))
