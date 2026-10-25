@@ -16,6 +16,7 @@
           ROW(T("phone", "Phone", "As customers should see it, e.g. +91 98765 43210"),
               T("whatsapp", "WhatsApp number", "Digits only with country code, e.g. 919876543210. Cake orders are sent here.")),
           ROW(T("email", "Email"), T("instagram", "Instagram handle", "Without the @")),
+          T("fssai", "FSSAI licence number", "14 digits. Shown in the footer of every page; customers look for it before ordering food. Leave in [brackets] to hide it."),
           TA("address", "Address"),
           T("mapLink", "Google Maps link", "Google Maps → Share → Copy link. Used for “Get directions”."),
           T("mapEmbed", "Google Maps embed link", "Google Maps → Share → Embed a map → copy only the link inside src=\"…\"")

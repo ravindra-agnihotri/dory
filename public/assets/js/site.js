@@ -106,6 +106,7 @@
   put("[data-phone]", C.phone, '<a href="' + telLink() + '">' + esc(C.phone) + "</a>");
   put("[data-email]", C.email, '<a href="mailto:' + esc(C.email) + '">' + esc(C.email) + "</a>");
   put("[data-instagram]", C.instagram, '<a href="https://instagram.com/' + esc(igHandle()) + '" target="_blank" rel="noopener">@' + esc(igHandle()) + "</a>");
+  put("[data-fssai]", C.fssai, "FSSAI Lic. No. " + t(C.fssai));
 
   var hours = (D.hours || []).filter(function (h) { return ok(h.days) && ok(h.time); });
   $all("[data-hours]").forEach(function (el) {

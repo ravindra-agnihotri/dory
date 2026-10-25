@@ -1,9 +1,10 @@
-git # Dory's Bakehouse: website + admin
+# Dory's Bakehouse: website + admin
 
 The public website, plus an admin panel at `/admin` where you can edit every detail and upload photos without touching code.
 
 ```
 app.py                 Flask backend (admin, API, and /content.js which the pages read)
+ssr.py                 Writes the finished menu, prices, hours, reviews and FAQ into the page HTML on the server
 public/                The public website. On Vercel it's served from the CDN
 admin/                 The admin panel
 default_content.json   Starting content, used only the very first time
@@ -102,6 +103,7 @@ If you paste the live Neon URL into `.env`, local edits change the **live** webs
 ---
 
 ## Using the admin
+- **FSSAI licence number** (admin → Basics & contact): shown in the footer of every page once you replace the `[bracket]` text.
 - **Basics & contact, This week's special, Menu, Home highlights, About, Custom cakes**: edit, then **Save changes** (Cmd/Ctrl + S). The live site updates within about a minute.
 - **Gallery**: shows everything in the Cloudinary folder `dorys-bakehouse/gallery`, newest first. Add photos in the admin or straight into that folder in Cloudinary (they appear within about 5 minutes). Captions save instantly. **Delete is permanent.**
 - **Previous versions**: every save keeps a copy (last 30). Restore one if something goes wrong.
@@ -112,6 +114,12 @@ Photos upload straight from the browser to Cloudinary, so large phone photos (up
 `CLOUDINARY_URL`, `SECRET_KEY`, `ADMIN_PASSWORD` and `DATABASE_URL` belong only in your host's settings and your local `.env`.
 Never put them in code, commit them, or paste them in chats or screenshots. If one leaks, change it in the provider's dashboard,
 update it on your host, and redeploy.
+
+`.env` is in `.gitignore`. If it was ever committed, ignoring it afterwards isn't enough: the old copy stays in git history and
+in every clone. Treat every value in it as public, rotate them all, then run `git rm --cached .env` and commit.
+To scrub history too, use `git filter-repo --path .env --invert-paths`, then force-push.
+
+`ADMIN_PASSWORD` must be 12+ characters or admin login is refused. For local testing only, add `ALLOW_SHORT_ADMIN_PASSWORD=1` to `.env`.
 
 ## Free-plan limits worth knowing
 - **Neon** pauses the database when idle; the first request after a quiet spell takes about a second longer. The site's content is cached at the edge on Vercel, so visitors rarely notice.
@@ -137,6 +145,14 @@ After deploying: add the site in **Google Search Console** (search.google.com/se
 | `GOOGLE_SITE_VERIFICATION` | (empty) | Search Console "HTML tag" code (paste the code or the whole tag) |
 | `BING_SITE_VERIFICATION` | (empty) | Bing Webmaster Tools "meta tag" code |
 | `GA_MEASUREMENT_ID` | (empty) | Google Analytics 4 ID (`G-…`). When set, every page loads Analytics and sends `whatsapp_click`, `whatsapp_order`, `phone_click` and `instagram_click` events; the Privacy page then shows its analytics paragraph. Not loaded on `?preview=1` pages. |
+
+## Why the pages show content immediately
+The pages are filled in two steps. The server (`ssr.py`) first writes the finished content into the HTML: menu with prices, hours,
+address, phone, FSSAI number, reviews, FAQ, About text and the WhatsApp and map links. Then `site.js` loads `content.js` and fills
+the page the same way, and also handles the parts that need a browser (order form, gallery, the weekly special, gifting).
+So Google, WhatsApp link previews and visitors on slow phones see the menu without waiting for scripts.
+If you change how `site.js` renders one of those blocks, change `ssr.py` to match. This only applies where Flask serves the pages
+(Render, PythonAnywhere, local). On Vercel the CDN serves `public/` directly, so only `site.js` fills the page.
 
 ## Gifting and FAQ
 - **Gifting** (admin → Gifting): gift boxes on `gifting.html`, a banner on the home page and a "Gifting" link in the menu, all only while **Show gift boxes** is on. Switched off, the page stays up with just the bulk-order box, so Google never finds a dead page. While it's on, the Google title becomes "<Title> in Pune | Dory's Bakehouse".

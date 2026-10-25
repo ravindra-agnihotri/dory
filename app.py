@@ -39,6 +39,8 @@ except ImportError:
 from flask import Flask, Response, abort, jsonify, redirect, request, send_from_directory, session
 from markupsafe import escape
 
+import ssr  # server-side rendering of menu, prices, hours, reviews (see ssr.py)
+
 BASE = Path(__file__).resolve().parent
 SITE_DIR = BASE / "public"          # public site; on Vercel these are served straight from the CDN
 ADMIN_DIR = BASE / "admin"
@@ -46,6 +48,9 @@ DEFAULT_CONTENT = BASE / "default_content.json"
 
 ON_VERCEL = bool(os.environ.get("VERCEL"))
 ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "")
+MIN_ADMIN_PASSWORD = 12
+# Short passwords are refused unless you opt in. Only set this on your own computer, never on the live site.
+ALLOW_SHORT_ADMIN_PASSWORD = os.environ.get("ALLOW_SHORT_ADMIN_PASSWORD", "") == "1"
 DATABASE_URL = os.environ.get("DATABASE_URL") or os.environ.get("POSTGRES_URL") or ""
 USE_DB = bool(DATABASE_URL)
 USE_CLOUDINARY = bool(os.environ.get("CLOUDINARY_URL"))
@@ -110,6 +115,8 @@ app.config.update(
     SESSION_COOKIE_SECURE=ON_VERCEL or os.environ.get("HTTPS", "0") == "1",
     PERMANENT_SESSION_LIFETIME=60 * 60 * 24 * 14,  # stay logged in 14 days
 )
+if ADMIN_PASSWORD and len(ADMIN_PASSWORD) < MIN_ADMIN_PASSWORD and not ALLOW_SHORT_ADMIN_PASSWORD:
+    app.logger.warning("ADMIN_PASSWORD is shorter than %d characters: admin login is refused until it is changed.", MIN_ADMIN_PASSWORD)
 
 
 def _default_content():
@@ -346,6 +353,9 @@ def login():
         return jsonify(error="Too many wrong attempts. Try again in 15 minutes."), 429
     if not ADMIN_PASSWORD:
         return jsonify(error="Admin password isn't set on the server (ADMIN_PASSWORD)."), 500
+    if len(ADMIN_PASSWORD) < MIN_ADMIN_PASSWORD and not ALLOW_SHORT_ADMIN_PASSWORD:
+        return jsonify(error=f"Admin login is switched off: ADMIN_PASSWORD on the server is shorter than {MIN_ADMIN_PASSWORD} "
+                             "characters. Set a longer one in your host's settings and redeploy."), 500
     pw = str((request.get_json(silent=True) or {}).get("password", ""))
     if hmac.compare_digest(pw.encode(), ADMIN_PASSWORD.encode()):
         store.set_failures(ip, 0, 0)
@@ -1218,6 +1228,14 @@ def render_page(name):
     html = _asset_versions(_page_source(name))
     d = _site_content()
     head, sep, body = html.partition("</head>")
+    if sep and d and not request.args.get("preview"):
+        # Write the finished content into the page itself, so it shows on first paint and without
+        # JavaScript. site.js fills the page the same way afterwards. If this ever fails, the page
+        # still works: site.js does all of it.
+        try:
+            body = ssr.render(body, d)
+        except Exception:
+            app.logger.exception("Server-side rendering failed for %s; the page will fill in with JavaScript instead", name)
     nm = d.get("name") if not _ph(d.get("name")) else DEFAULT_NAME
     if nm != DEFAULT_NAME:
         head = head.replace(DEFAULT_NAME, str(escape(nm)))
@@ -1339,4 +1357,7 @@ if __name__ == "__main__":
     print("  Photos:  " + (f"Cloudinary (folder '{CLOUDINARY_FOLDER}', gallery '{GALLERY_FOLDER}')"
                            if USE_CLOUDINARY else f"folder {UPLOAD_DIR}  (CLOUDINARY_URL not set)"))
     print(f"  Site:    http://localhost:{port}\n  Admin:   http://localhost:{port}/admin\n")
+    if ADMIN_PASSWORD and len(ADMIN_PASSWORD) < MIN_ADMIN_PASSWORD and not ALLOW_SHORT_ADMIN_PASSWORD:
+        print(f"  ⚠  ADMIN_PASSWORD is shorter than {MIN_ADMIN_PASSWORD} characters, so admin login is refused. "
+              "Use a longer one, or add ALLOW_SHORT_ADMIN_PASSWORD=1 to .env for local testing only.\n")
     app.run(host="127.0.0.1", port=port, debug=False)
